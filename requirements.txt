@@ -1,0 +1,13 @@
+numpy
+pymysql
+pandas
+scipy
+TA-Lib
+technical
+openpyxl
+cryptography
+discord.py
+python-dotenv
+tabulate
+requests
+wheel>=0.36.2
