@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import pymysql
 import talib
 
@@ -21,7 +22,6 @@ class Stock:
         self.__load_price_board_day()
         # Load price board at $M
         self.__load_price_board_minute()
-
         if not self.df_finance.empty:
             # finance info #EPS means()
             self.EPS = self.df_finance['eps'].iloc[0]
@@ -299,6 +299,7 @@ class Stock:
             sql_resolution_d = """select code, t, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
             self.df_day = pd.DataFrame(pd.read_sql_query(sql_resolution_d, self.conn))
+            self.df_day['session'] = pd.to_datetime(self.df_day['t'], unit='s')
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong", ex)
 
@@ -421,6 +422,43 @@ class Stock:
                condition_6 and \
                condition_7
 
+    # -- Dellphic from @Phan Hieu -- #
+    # function isOver (dgTren, dgDuoi, batdau, ketthuc)
+    # {
+    # 	kq=True;
+    # 	for (i=batdau; i<ketthuc; i++)
+    # 	{
+    # 		kq= kq AND IIf(Ref (dgTren,i) > Ref (dgDuoi,i), True, False);
+    # 	}
+    # 	return kq;
+    #
+    # }
+    # DK1= LLV (MA(C, 5), 40) < LLV (MA(C, 20), 40); // Gia tri nho nhat Ma5 < MA20 hay Ma5<Ma20
+    # DK2= LLV (MA(C, 20), 40) < LLV (MA (C, 50), 40);
+    # DK3= HHV (MA(C,5), 20) > HHV (MA (C, 20), 20);
+    # DK4= HHV (MA(C,20), 20) > HHV (MA (C, 50), 20);
+    # DK5= isOver(MA(C, 5), MA(C, 50), -10,0);
+    # DK6= Cross(MA(C,5), MA(C,20));
+    # DK7=V>150000;
+    # Buy = DK1 AND DK2 AND DK3 AND DK4 AND DK5 AND DK6 AND DK7;
+    # Filter=Buy;
+
+    def dellphic(self):
+        print('SMA_5', self.df_day['SMA_5'].rolling(window=40).min().iloc[-1])
+        print('SMA_20', self.df_day['SMA_20'].rolling(window=40).min().iloc[-1])
+        DK1 = self.df_day['SMA_5'].rolling(window=40).min().iloc[-1] < self.df_day['SMA_20'].rolling(window=40).min().iloc[-1]
+        DK2 = self.df_day['SMA_20'].rolling(window=40).min().iloc[-1] < self.df_day['SMA_50'].rolling(window=40).min().iloc[-1]
+        DK3 = self.df_day['SMA_5'].rolling(window=20).max().iloc[-1] > self.df_day['SMA_20'].rolling(window=20).max().iloc[-1]
+        DK4 = self.df_day['SMA_20'].rolling(window=20).max().iloc[-1] > self.df_day['SMA_50'].rolling(window=20).max().iloc[-1]
+        DK5 = self.df_day['SMA_5'].tail(10) > self.df_day['SMA_20'].tail(10)
+
+        # Check if SMA5 cross
+        sma520diff = self.df_day['SMA_5'] - self.df_day['SMA_20']
+        xyz = np.select([((sma520diff < 0) & (sma520diff.shift() >= 0)), ((sma520diff > 0) & (sma520diff.shift() < 0))], [True, False], False)
+        DK6 = xyz[-1]
+        DK7 = self.df_day['volume'].iloc[-1] > 150000
+        return DK1 & DK2 & DK3 & DK4 & DK5 & DK6 & DK7
+
     def f_khoi_luong_giao_dich_tang_dan_theo_so_phien(self, window=5):
         if len(self.df_day) > 5:
             # print(1, self.df['t'].iloc[-1], self.df['volume'].iloc[-1])
@@ -499,10 +537,10 @@ class Stock:
         # Downtrend=(KS9 < Ref(Span1,-t3) AND KS9<Ref(Span2,-t3) AND (KS17<Ref(Span1,-t3) AND KS17<Ref(Span2,-t3))) ;
         self.df_day.loc[
             (
-                    (self.df_day['{}_ks9'.format(name)] < self.df_day['{}_span_a'.format(name)])
-                    # (self.df_day['{}_ks9'.format(name)] < self.df_day['{}_span_b'.format(name)]) &
-                    # (self.df_day['{}_ks17'.format(name)] < self.df_day['{}_span_a'.format(name)]) &
-                    # (self.df_day['{}_ks17'.format(name)] < self.df_day['{}_span_b'.format(name)])
+                (self.df_day['{}_ks9'.format(name)] < self.df_day['{}_span_a'.format(name)])
+                # (self.df_day['{}_ks9'.format(name)] < self.df_day['{}_span_b'.format(name)]) &
+                # (self.df_day['{}_ks17'.format(name)] < self.df_day['{}_span_a'.format(name)]) &
+                # (self.df_day['{}_ks17'.format(name)] < self.df_day['{}_span_b'.format(name)])
             ),
             'downtrend_{}'.format(name)
         ] = (1 * impact_sell)
@@ -575,7 +613,8 @@ class Stock:
         # STRENGTHEN UP
         self.df_day.loc[
             (
-                    (((self.df_day['{}_ks9'.format(name)].shift(-1) - self.df_day['{}_ks17'.format(name)].shift(-1)) / self.df_day['{}_ks17'.format(name)].shift(-1)).abs() < ratio) &
+                    (((self.df_day['{}_ks9'.format(name)].shift(-1) - self.df_day['{}_ks17'.format(name)].shift(-1)) / self.df_day['{}_ks17'.format(name)].shift(
+                        -1)).abs() < ratio) &
                     (((self.df_day['{}_ks9'.format(name)] - self.df_day['{}_ks17'.format(name)]) / self.df_day['{}_ks17'.format(name)]).abs() < ratio) &
                     (self.df_day['{}_ks17'.format(name)] > (self.df_day['{}_ks17'.format(name)].shift(-1))) &
                     (self.df_day['{}_ks65'.format(name)] >= (self.df_day['{}_ks65'.format(name)].shift(-1))) &
@@ -588,7 +627,8 @@ class Stock:
         # STRENGTHEN DOWN
         self.df_day.loc[
             (
-                    (((self.df_day['{}_ks9'.format(name)].shift(-1) - self.df_day['{}_ks17'.format(name)].shift(-1)) / self.df_day['{}_ks17'.format(name)].shift(-1)).abs() < ratio) &
+                    (((self.df_day['{}_ks9'.format(name)].shift(-1) - self.df_day['{}_ks17'.format(name)].shift(-1)) / self.df_day['{}_ks17'.format(name)].shift(
+                        -1)).abs() < ratio) &
                     (((self.df_day['{}_ks9'.format(name)] - self.df_day['{}_ks17'.format(name)]) / self.df_day['{}_ks17'.format(name)]).abs() < ratio) &
                     (self.df_day['{}_ks17'.format(name)] < (self.df_day['{}_ks17'.format(name)].shift(-1))) &
                     (self.df_day['{}_ks65'.format(name)] <= (self.df_day['{}_ks65'.format(name)].shift(-1))) &
@@ -695,3 +735,10 @@ def ichimoku5(dataframe,
         'lagging_pt2m1': LAGGING_PT2M1,
         'lagging_mt2p1': LAGGING_MT2P1,
     }
+
+
+# Test
+if __name__ == '__main__':
+    print('Hello ...')
+    s = Stock('FPT')
+    print(s.dellphic())

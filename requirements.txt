@@ -1,3 +1,4 @@
+aiocron
 numpy
 pymysql
 pandas

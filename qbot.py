@@ -10,6 +10,7 @@ from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import queue
 import multiprocessing as mp
+import aiocron
 
 from mpt import calc_correlation, optimize_profit
 from stock import Stock
@@ -34,7 +35,7 @@ DB_NAME = os.getenv('DB_NAME')
 DB_USER = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 
-channel_list = [815900646419071000, 818029515028168714]
+bot.channel_list = [815900646419071000, 818029515028168714]
 bot.message_to_delete = queue.Queue()
 
 bot.conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
@@ -43,19 +44,29 @@ bot.allowed_commands = ['?MTP', '?MPT', '?INFO', '?TICKER', '?AMARK']
 bot.good_code = []
 
 
+def dellphic_worker(code):
+    try:
+        s = Stock(code=code)
+        if s.dellphic():
+            return code
+        del s
+    except Exception as ex:
+        print('Exception', ex)
+
+
 def stock_worker(code):
     try:
         s = Stock(code=code)
         if s.f_check_7_conditions() and s.f_total_vol() > 100000:
             return [
-                    s.LAST_SESSION,
-                    code,
-                    s.f_total_vol(),
-                    s.EPS,
-                    s.EPS_MEAN4,
-                    s.f_get_current_price(),
-                    s.f_last_changed() * 100,
-                ]
+                s.LAST_SESSION,
+                code,
+                s.f_total_vol(),
+                s.EPS,
+                s.EPS_MEAN4,
+                s.f_get_current_price(),
+                s.f_last_changed() * 100,
+            ]
 
         # s.consensus_day.evaluate_ichimoku()
         # s.evaluate_ichimoku5()
@@ -107,6 +118,18 @@ async def on_ready():
         sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', bot.conn)
         bot.company_list = list(pd.DataFrame(sql_query)['Code'])
         bot.conn.close()
+
+
+@aiocron.crontab('*/1 * * * *')
+async def dellphic():
+    print('... dellphic')
+    p = mp.Pool(5)
+    good_codes = [x for x in p.map(dellphic_worker, bot.company_list) if x is not None]
+    p.close()
+    p.join()
+
+    channel = bot.get_channel(818029515028168714)
+    await channel.send('Dellphic: ```%s```' % good_codes)
 
 
 @tasks.loop(seconds=15)
@@ -186,12 +209,12 @@ async def on_message(message):
     # Not process if message is from the bot
     print(message.channel.id, message.author.id, message.author, message.content)
 
-    # Only allow run bot in channel_list
+    # Only allow run bot in bot.channel_list
     msg = message.content.upper()
     ctx = message.channel
     cmd = msg.split(' ')[:1][0]
 
-    if msg.startswith('?') and message.channel.id not in channel_list:
+    if msg.startswith('?') and message.channel.id not in bot.channel_list:
         xh = "```Chỉ chạy bot trong phòng 'gọi-bot'!```"
         if PYTHON_ENVIRONMENT == 'production':
             await message.channel.send(xh, delete_after=10.0)
@@ -207,7 +230,7 @@ async def on_message(message):
         await bot.process_commands(message)
     elif msg.endswith('X3') or msg.endswith('X3.') or msg.endswith('.X3') or msg.endswith(':X'):
         bot.message_to_delete.put(message)
-    elif msg.startswith('?') and message.channel.id in channel_list:
+    elif msg.startswith('?') and message.channel.id in bot.channel_list:
         xh = "Hãy dùng cú pháp: ```?mtp mã_ck1 mã_ck2 ....```"
         if PYTHON_ENVIRONMENT == 'production':
             await ctx.send(xh, delete_after=10.0)
@@ -232,7 +255,6 @@ async def amark(ctx, *args):
         results_buy.to_excel("outputs/amark.xlsx")
 
     await ctx.send(file=discord.File('outputs/amark.xlsx'))
-
 
 
 @bot.group()
@@ -269,4 +291,3 @@ async def mtp(ctx, *args):
 
 slow.start()
 bot.run(TOKEN)
-
