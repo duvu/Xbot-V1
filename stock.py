@@ -106,19 +106,34 @@ class Stock:
 
         # reverse
         self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
+        self.df_day = self.df_day.drop_duplicates(subset='date', keep="first")
+
         self.df_minute = self.df_minute.reindex(index=self.df_minute.index[::-1])
 
+        # re-sample
+        self.df_h1 = resample_to_interval(self.df_minute, interval=60)
+        self.df_h4 = resample_to_interval(self.df_minute, interval=240)
+        self.df_w1 = resample_to_interval(self.df_day, interval=10080)
+
         try:
-            print('Size Days #', self.code, len(self.df_day))
+            # print('Size Days #', self.code, len(self.df_day))
             self.consensus_day = SummaryConsensus(self.df_day)
             # self.consensus_minute = SummaryConsensus(self.df_minute)
         except Exception as ex:
             print('Something went wrong', ex)
             raise ex
 
+        if not self.df_h1.empty:
+            self.df_h1['SMA_5'] = talib.SMA(self.df_h1['close'], timeperiod=5)
+            self.df_h1['SMA_10'] = talib.SMA(self.df_h1['close'], timeperiod=10)
+            self.df_h1['SMA_20'] = talib.SMA(self.df_h1['close'], timeperiod=20)
+            self.df_h1['SMA_50'] = talib.SMA(self.df_h1['close'], timeperiod=50)
+            self.df_h1['SMA_150'] = talib.SMA(self.df_h1['close'], timeperiod=150)
+            self.df_h1['SMA_200'] = talib.SMA(self.df_h1['close'], timeperiod=200)
+
         # print('Price List', self.df)
         if not self.df_day.empty:
-            self.LAST_SESSION = self.df_day['t'].iloc[-1]
+            self.LAST_SESSION = self.df_day['date'].iloc[-1]
             self.df_day['changed'] = self.df_day['close'].pct_change()
             self.df_day['rsi'] = talib.RSI(self.df_day['close'])
             self.df_day['cci'] = talib.CCI(self.df_day['high'], self.df_day['low'], self.df_day['close'], timeperiod=20)
@@ -296,19 +311,20 @@ class Stock:
     # Load 1000 days = 3 years
     def __load_price_board_day(self, length=1000):
         try:
-            sql_resolution_d = """select code, t, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
+            sql_resolution_d = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
             self.df_day = pd.DataFrame(pd.read_sql_query(sql_resolution_d, self.conn))
-            self.df_day['session'] = pd.to_datetime(self.df_day['t'], unit='s')
+            self.df_day['date'] = pd.to_datetime(self.df_day['date'], unit='s')
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong", ex)
 
     # Load 6k minute = 100 hours
     def __load_price_board_minute(self, length=6000):
         try:
-            sql_resolution_m = """select code, t, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
+            sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
             self.df_minute = pd.DataFrame(pd.read_sql_query(sql_resolution_m, self.conn))
+            self.df_minute['date'] = pd.to_datetime(self.df_minute['date'], unit='s')
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong")
 
@@ -443,33 +459,37 @@ class Stock:
     # Buy = DK1 AND DK2 AND DK3 AND DK4 AND DK5 AND DK6 AND DK7;
     # Filter=Buy;
 
-    def dellphic(self):
-        print('SMA_5', self.df_day['SMA_5'].rolling(window=40).min().iloc[-1])
-        print('SMA_20', self.df_day['SMA_20'].rolling(window=40).min().iloc[-1])
-        DK1 = self.df_day['SMA_5'].rolling(window=40).min().iloc[-1] < self.df_day['SMA_20'].rolling(window=40).min().iloc[-1]
-        DK2 = self.df_day['SMA_20'].rolling(window=40).min().iloc[-1] < self.df_day['SMA_50'].rolling(window=40).min().iloc[-1]
-        DK3 = self.df_day['SMA_5'].rolling(window=20).max().iloc[-1] > self.df_day['SMA_20'].rolling(window=20).max().iloc[-1]
-        DK4 = self.df_day['SMA_20'].rolling(window=20).max().iloc[-1] > self.df_day['SMA_50'].rolling(window=20).max().iloc[-1]
-        DK5 = self.df_day['SMA_5'].tail(10) > self.df_day['SMA_20'].tail(10)
+    def dellphic(self, timeframe='d1'):
+        if timeframe == 'd1':
+            df = self.df_day
+        elif timeframe == 'w1':
+            df = self.df_w1
+        elif timeframe == 'h1':
+            df = self.df_h1
+        elif timeframe == 'h4':
+            df = self.df_h4
+        else:
+            df = self.df_day
 
+        DK1 = df['SMA_5'].rolling(window=40).min() < df['SMA_20'].rolling(window=40).min()
+        DK2 = df['SMA_20'].rolling(window=40).min() < df['SMA_50'].rolling(window=40).min()
+        DK3 = df['SMA_5'].rolling(window=20).max() > df['SMA_20'].rolling(window=20).max()
+        DK4 = df['SMA_20'].rolling(window=20).max() > df['SMA_50'].rolling(window=20).max()
+        DK5 = df['SMA_5'] > df['SMA_20']
         # Check if SMA5 cross
-        sma520diff = self.df_day['SMA_5'] - self.df_day['SMA_20']
-        xyz = np.select([((sma520diff < 0) & (sma520diff.shift() >= 0)), ((sma520diff > 0) & (sma520diff.shift() < 0))], [True, False], False)
-        DK6 = xyz[-1]
-        DK7 = self.df_day['volume'].iloc[-1] > 150000
+        sma520diff = df['SMA_5'] - df['SMA_20']
+        DK6 = np.select([((sma520diff < 0) & (sma520diff.shift() > 0)), ((sma520diff > 0) & (sma520diff.shift() < 0))], [True, False], False)
+        DK7 = df['volume'].iloc[-1] > 150000
         return DK1 & DK2 & DK3 & DK4 & DK5 & DK6 & DK7
 
-    def f_khoi_luong_giao_dich_tang_dan_theo_so_phien(self, window=5):
-        if len(self.df_day) > 5:
-            # print(1, self.df['t'].iloc[-1], self.df['volume'].iloc[-1])
-            # print(2, self.df['t'].iloc[-2], self.df['volume'].iloc[-2])
-            return self.df_day['volume'].iloc[-1] > self.df_day['volume'].iloc[-2] > self.df_day['volume'].iloc[-3]
-        else:
-            return False
+    def volume_increase(self, window=5):
+        compares = self.df_day['volume'] > self.df_day['volume'].shift()
+        return compares.tail(window).all()
 
-    def f_gia_tang_dan(self, window=5):
-        if len(self.df_day) > 5:
-            return self.df_day['close'].iloc[-1] > self.df_day['close'].iloc[-2] > self.df_day['close'].iloc[-3]
+    # Giá tăng liên tục window phiên.
+    def price_increase(self, window=5):
+        compares = self.df_day['close'] > self.df_day['close'].shift()
+        return compares.tail(window).all()
 
     def f_check_two_crows(self):
         try:
@@ -737,8 +757,41 @@ def ichimoku5(dataframe,
     }
 
 
+def resample_to_interval(dataframe: pd.DataFrame, interval):
+    """
+    Resamples the given dataframe to the desired interval.
+    Please be aware you need to use resampled_merge to merge to another dataframe to
+    avoid lookahead bias
+
+    :param dataframe: dataframe containing close/high/low/open/volume
+    :param interval: to which ticker value in minutes would you like to resample it
+    :return:
+    """
+    df = dataframe.copy()
+    print(df)
+    # df['date'] = pd.to_datetime(df['date'], unit='s')
+    df = df.set_index(pd.DatetimeIndex(df["date"]))
+    ohlc_dict = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+    # Resample to "left" border as dates are candle open dates
+    # df = df.resample(axis=1, on='date', kind='timestamp', rule=str(interval) + "min", label="left").agg(ohlc_dict).dropna()
+    df = df.resample(str(interval) + "min", kind='timestamp').agg(ohlc_dict).dropna()
+
+    df.reset_index(inplace=True)
+    # df['date'] = df['date'].apply(lambda x: pd.Timestamp(x))
+    return df
+
+
 # Test
 if __name__ == '__main__':
     print('Hello ...')
     s = Stock('FPT')
-    print(s.dellphic())
+
+    # print('%%%', s.price_increase(window=5))
+
+    ohlc_dict = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+    # df_h1 = s.df_minute.copy()
+    # df_h1 = resample_to_interval(s.df_minute, interval=60)
+    # self.df_h1 = resample_to_interval(self.df_minute, interval='60m')
+    # print(s.df_minute)
+    # print(df_h1)
+    print(s.dellphic(timeframe='h1'))

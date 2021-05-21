@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import queue
 import multiprocessing as mp
 import aiocron
-
+from itertools import repeat
 from mpt import calc_correlation, optimize_profit
 from stock import Stock
 
@@ -40,14 +40,30 @@ bot.message_to_delete = queue.Queue()
 
 bot.conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
 bot.cursor = bot.conn.cursor()
-bot.allowed_commands = ['?MTP', '?MPT', '?INFO', '?TICKER', '?AMARK']
+bot.allowed_commands = [
+    '?MTP', '?MPT',
+    '?INFO',
+    '?TICKER',
+    '?AMARK',
+    '?GTLT',
+]
 bot.good_code = []
 
 
-def dellphic_worker(code):
+def gtlt_worker(code, window):
     try:
         s = Stock(code=code)
-        if s.dellphic():
+        if s.price_increase(window=window):
+            return code
+        del s
+    except Exception as ex:
+        print('Exception', ex)
+
+
+def dellphic_worker(code, timeframe='d1'):
+    try:
+        s = Stock(code=code)
+        if s.dellphic(timeframe=timeframe).iloc[-1]:
             return code
         del s
     except Exception as ex:
@@ -111,7 +127,7 @@ async def on_ready():
     print(bot.user.id)
     print('------')
     if PYTHON_ENVIRONMENT == 'development':
-        sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC limit 50''', bot.conn)
+        sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', bot.conn)
         bot.company_list = list(pd.DataFrame(sql_query)['Code'])
         bot.conn.close()
     else:
@@ -120,16 +136,40 @@ async def on_ready():
         bot.conn.close()
 
 
-@aiocron.crontab('*/1 * * * *')
-async def dellphic():
+# At 16:00 on every day-of-week from Monday through Friday.
+@aiocron.crontab('0 16 * * 1-5')
+async def dellphic_daily():
+    if PYTHON_ENVIRONMENT == 'development':
+        bot.default_channel = bot.get_channel(815900646419071000)
+    else:
+        bot.default_channel = bot.get_channel(818029515028168714)
+
     print('... dellphic')
     p = mp.Pool(5)
-    good_codes = [x for x in p.map(dellphic_worker, bot.company_list) if x is not None]
+    good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('d1'))) if x is not None]
     p.close()
     p.join()
 
-    channel = bot.get_channel(818029515028168714)
-    await channel.send('Dellphic: ```%s```' % good_codes)
+    if len(good_codes) > 0:
+        await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
+
+
+# At minute 1 past every hour from 9 through 15 on every day-of-week from Monday through Friday.
+@aiocron.crontab('30 2-8 * * 1-5')
+async def dellphic_hourly():
+    if PYTHON_ENVIRONMENT == 'development':
+        bot.default_channel = bot.get_channel(815900646419071000)
+    else:
+        bot.default_channel = bot.get_channel(818029515028168714)
+
+    print('... dellphic')
+    p = mp.Pool(5)
+    good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('h1'))) if x is not None]
+    p.close()
+    p.join()
+
+    if len(good_codes) > 0:
+        await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
 
 
 @tasks.loop(seconds=15)
@@ -241,6 +281,17 @@ async def on_message(message):
 @bot.group()
 async def ticker(ctx, *args):
     await ctx.send(bot.company_list[:100])
+
+
+# Gia tang lien tuc x phien
+@bot.group()
+async def gtlt(ctx, *args):
+    p = mp.Pool(5)
+    window = int(args[0]) if (len(args) > 0) else 5
+    codes = [x for x in p.starmap(gtlt_worker, zip(bot.company_list, repeat(window))) if x is not None]
+    p.close()
+    p.join()
+    await ctx.send(codes)
 
 
 @bot.group()
