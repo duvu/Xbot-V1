@@ -14,6 +14,7 @@ import aiocron
 from itertools import repeat
 from mpt import calc_correlation, optimize_profit
 from stock import Stock
+from util import volume_break_load_cached, volume_break_save_cached
 
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
@@ -37,17 +38,38 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 
 bot.channel_list = [815900646419071000, 818029515028168714]
 bot.message_to_delete = queue.Queue()
+bot.stock_objects = {}
 
-bot.conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
-bot.cursor = bot.conn.cursor()
 bot.allowed_commands = [
     '?MTP', '?MPT',
     '?INFO',
     '?TICKER',
     '?AMARK',
     '?GTLT',
+    '?VB'
 ]
 bot.good_code = []
+bot.company_list = []
+bot.company_list_all = []
+
+
+def get_connection():
+    conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
+    cursor = conn.cursor()
+    return conn, cursor
+
+
+def close_connection(conn):
+    if conn:
+        conn.close()
+
+
+def reload_company_list():
+    # Update company list
+    conn, cursor = get_connection()
+    sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))''', conn)
+    bot.company_list = list(pd.DataFrame(sql_query)['code'])
+    close_connection(conn)
 
 
 def gtlt_worker(code, window):
@@ -60,9 +82,25 @@ def gtlt_worker(code, window):
         print('Exception', ex)
 
 
+def volume_break_worker(code, window, breakout):
+    try:
+        s = Stock(code=code)
+        if s.volume_break(window=window, breakout=breakout):
+            # return code
+            return [
+                code,
+                s.f_total_vol(),
+                s.f_get_current_price(),
+            ]
+        del s
+    except Exception as ex:
+        print('Exception', ex)
+
+
 def dellphic_worker(code, timeframe='d1'):
     try:
         s = Stock(code=code)
+        s.calculate_indicators()
         if s.dellphic(timeframe=timeframe).iloc[-1]:
             return code
         del s
@@ -120,20 +158,40 @@ def stock_worker(code):
         print('Exception', ex)
 
 
+def insert_mentioned_code(matches, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message):
+    if len(matches) > 0:
+        conn, cursor = get_connection()
+        sql_string = '''insert into tbl_mentions(symbol, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message) VALUES (%s, %s, %s, %s, %s, %s)'''
+        for x in matches:
+            try:
+                cursor.execute(sql_string, (x, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message))
+                conn.commit()
+            except:
+                print('[ERROR] Something went wrong')
+        close_connection(conn)
+
+
 @bot.event
 async def on_ready():
     print('Logged in as')
     print(bot.user.name)
     print(bot.user.id)
     print('------')
-    if PYTHON_ENVIRONMENT == 'development':
-        sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', bot.conn)
-        bot.company_list = list(pd.DataFrame(sql_query)['Code'])
-        bot.conn.close()
-    else:
-        sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', bot.conn)
-        bot.company_list = list(pd.DataFrame(sql_query)['Code'])
-        bot.conn.close()
+    reload_company_list()
+    conn, cursor = get_connection()
+    sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', conn)
+    bot.company_list_all = list(pd.DataFrame(sql_query)['Code'])
+    close_connection(conn)
+
+    # if PYTHON_ENVIRONMENT == 'development':
+    #     # sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC limit 20''', bot.conn)
+    #     sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7)) limit 20''', bot.conn)
+    #     bot.company_list = list(pd.DataFrame(sql_query)['code'])
+    #     bot.conn.close()
+    # else:
+    #     sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))''', bot.conn)
+    #     bot.company_list = list(pd.DataFrame(sql_query)['code'])
+    #     bot.conn.close()
 
 
 # At 16:00 on every day-of-week from Monday through Friday.
@@ -143,6 +201,8 @@ async def dellphic_daily():
         bot.default_channel = bot.get_channel(815900646419071000)
     else:
         bot.default_channel = bot.get_channel(818029515028168714)
+    # Reload company list
+    reload_company_list()
 
     print('... dellphic')
     p = mp.Pool(5)
@@ -172,13 +232,31 @@ async def dellphic_hourly():
         await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
 
 
+# @tasks.loop(minutes=1)
+# async def refresh_data():
+#     print('refresh data')
+#     bot.stock_objects.clear()
+#     num_cores = mp.cpu_count()
+#     p = mp.Pool(num_cores)
+#
+#     good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('d1'))) if x is not None]
+#     p.apply_async()
+#     p.close()
+#     p.join()
+#
+#
+#     bot.stock_objects = {x: Stock(x) for x in bot.company_list}
+#     print('Total Stocks loaded %s' % len(bot.stock_objects))
+
+
 @tasks.loop(seconds=15)
 async def slow():
-    print('slowing ...', bot.message_to_delete.qsize())
+    if PYTHON_ENVIRONMENT == 'development':
+        print('slowing ...', bot.message_to_delete.qsize())
+
     msg = bot.message_to_delete.get() if bot.message_to_delete.qsize() > 0 else None
     if msg is not None:
-        print('slowing ...', msg.created_at, datetime.utcnow() + timedelta(minutes=-3))
-
+        # print('slowing ...', msg.created_at, datetime.utcnow() + timedelta(minutes=-3))
         isOld = (msg.created_at < (datetime.utcnow() - timedelta(minutes=3)))
         if isOld:
             # Delete
@@ -244,38 +322,51 @@ async def slow():
 
 @bot.event
 async def on_message(message):
+    # Not process if message is from the bot
     if message.author.id == bot.user.id:
         return
-    # Not process if message is from the bot
-    print(message.channel.id, message.author.id, message.author, message.content)
+
+    if PYTHON_ENVIRONMENT == 'development':
+        print(message.channel.id, message.author.id, message.author, message.content)
 
     # Only allow run bot in bot.channel_list
     msg = message.content.upper()
     ctx = message.channel
-    cmd = msg.split(' ')[:1][0]
 
-    if msg.startswith('?') and message.channel.id not in bot.channel_list:
-        xh = "```Chỉ chạy bot trong phòng 'gọi-bot'!```"
-        if PYTHON_ENVIRONMENT == 'production':
-            await message.channel.send(xh, delete_after=10.0)
-        else:
-            print(xh)
-    elif cmd in bot.allowed_commands:
-        print('Come here')
-        #     symbols = msg.split(' ')[1:]
-        #     await ctx.send('`{}` mã : `{}`'.format(len(symbols), ', '.join(symbols)))
-        #     symbols, mean, corr = calc_correlation(symbols, 120)
-        #     result = optimize_profit(symbols, mean, corr)
-        #     await ctx.send(result.to_string())
-        await bot.process_commands(message)
+    # Process message and insert to db for STAT here
+
+    matches = [x for x in bot.company_list_all if x in msg]
+    if len(matches) > 0:
+        # Insert into database
+        print('### MATCH %s' % matches)
+        insert_mentioned_code(matches, message.created_at, message.author.id, message.author, 'discord', message.content)
+    else:
+        print('### NO MATCHES')
+
+    if msg.startswith('?'):
+        if message.channel.id not in bot.channel_list:
+            xh = "```Chỉ chạy bot trong phòng 'gọi-bot'!```"
+            if PYTHON_ENVIRONMENT == 'production':
+                await message.channel.send(xh, delete_after=10.0)
+            else:
+                print(xh)
+        elif message.channel.id in bot.channel_list:
+            cmd = msg.split(' ')[:1][0]
+            if cmd in bot.allowed_commands:
+                #     symbols = msg.split(' ')[1:]
+                #     await ctx.send('`{}` mã : `{}`'.format(len(symbols), ', '.join(symbols)))
+                #     symbols, mean, corr = calc_correlation(symbols, 120)
+                #     result = optimize_profit(symbols, mean, corr)
+                #     await ctx.send(result.to_string())
+                await bot.process_commands(message)
+            else:
+                xh = "Hãy dùng cú pháp: ```?mtp mã_ck1 mã_ck2 ....```"
+                if PYTHON_ENVIRONMENT == 'production':
+                    await ctx.send(xh, delete_after=10.0)
+                else:
+                    print(xh)
     elif msg.endswith('X3') or msg.endswith('X3.') or msg.endswith('.X3') or msg.endswith(':X'):
         bot.message_to_delete.put(message)
-    elif msg.startswith('?') and message.channel.id in bot.channel_list:
-        xh = "Hãy dùng cú pháp: ```?mtp mã_ck1 mã_ck2 ....```"
-        if PYTHON_ENVIRONMENT == 'production':
-            await ctx.send(xh, delete_after=10.0)
-        else:
-            print(xh)
 
 
 @bot.group()
@@ -295,6 +386,35 @@ async def gtlt(ctx, *args):
 
 
 @bot.group()
+async def vb(ctx, *args):
+    w = volume_break_load_cached()
+    if w is not None:
+
+        if len(w) > 1900:
+            await ctx.send('Danh sách khối lượng tăng đột biến đáng chú ý.\n ```%s```' % w[:1900])
+            await ctx.send('```%s```' % w[1900:])
+        else:
+            await ctx.send('Danh sách khối lượng tăng đột biến đáng chú ý.\n ```%s```' % w)
+    else:
+        p = mp.Pool(mp.cpu_count())
+        window = int(args[0]) if (len(args) > 0) else 20
+        breakout = int(args[1]) if (len(args) > 1) else 50
+        codes = [x for x in p.starmap(volume_break_worker, zip(bot.company_list, repeat(window), repeat(breakout))) if x is not None]
+        p.close()
+        p.join()
+
+        watchlist = pd.DataFrame(codes, columns=['Code', 'Vol', 'Price'])
+        # save to cached
+        w = watchlist.to_string()
+        volume_break_save_cached(w)
+        if len(w) > 1900:
+            await ctx.send('Danh sách khối lượng tăng đột biến đáng chú ý.\n ```%s```' % w[:1900])
+            await ctx.send('```%s```' % w[1900:])
+        else:
+            await ctx.send('Danh sách khối lượng tăng đột biến đáng chú ý.\n ```%s```' % w)
+
+
+@bot.group()
 async def amark(ctx, *args):
     if not path.exists('outputs/amark.xlsx'):
         p = mp.Pool(5)
@@ -304,6 +424,7 @@ async def amark(ctx, *args):
 
         results_buy = pd.DataFrame(buy_rows, columns=["Session", "Code", "Volume", "EPS", "EPS_MEAN4", 'Price', 'Changed'])
         results_buy.to_excel("outputs/amark.xlsx")
+    cached = datetime.now().strftime("%b%d")
 
     await ctx.send(file=discord.File('outputs/amark.xlsx'))
 
@@ -341,4 +462,5 @@ async def mtp(ctx, *args):
 
 
 slow.start()
+# refresh_data.start()
 bot.run(TOKEN)

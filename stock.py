@@ -3,8 +3,6 @@ import numpy as np
 import pymysql
 import talib
 
-from technical.consensus.summary import SummaryConsensus
-
 
 class Stock:
     df_minute = None
@@ -22,6 +20,48 @@ class Stock:
         self.__load_price_board_day()
         # Load price board at $M
         self.__load_price_board_minute()
+
+        # reverse
+        self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
+        self.df_day = self.df_day.drop_duplicates(subset='date', keep="first")
+
+        self.df_minute = self.df_minute.reindex(index=self.df_minute.index[::-1])
+
+        # re-sample
+        self.df_h1 = resample_to_interval(self.df_minute, interval=60)
+        self.df_h4 = resample_to_interval(self.df_minute, interval=240)
+        self.df_w1 = resample_to_interval(self.df_day, interval=10080)
+
+    def __load_finance_info(self):
+        # Load finance info
+        try:
+            sql_finance_info = """select * from tbl_finance_info as ti where ti.code='""" + self.code + """' order by year_period desc, quarter_period desc limit 4"""
+            finance_info_data = pd.read_sql_query(sql_finance_info, self.conn)
+            self.df_finance = pd.DataFrame(finance_info_data)  # data-frame finance information
+        except pd.io.sql.DatabaseError as ex:
+            print("No finance information")
+
+    # Load 1000 days = 3 years
+    def __load_price_board_day(self, length=1000):
+        try:
+            sql_resolution_d = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
+                length)
+            self.df_day = pd.DataFrame(pd.read_sql_query(sql_resolution_d, self.conn))
+            self.df_day['date'] = pd.to_datetime(self.df_day['date'], unit='s')
+        except pd.io.sql.DatabaseError as ex:
+            print("Something went wrong", ex)
+
+    # Load 6k minute = 100 hours
+    def __load_price_board_minute(self, length=6000):
+        try:
+            sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
+                length)
+            self.df_minute = pd.DataFrame(pd.read_sql_query(sql_resolution_m, self.conn))
+            self.df_minute['date'] = pd.to_datetime(self.df_minute['date'], unit='s')
+        except pd.io.sql.DatabaseError as ex:
+            print("Something went wrong")
+
+    def calculate_finance_info(self):
         if not self.df_finance.empty:
             # finance info #EPS means()
             self.EPS = self.df_finance['eps'].iloc[0]
@@ -104,25 +144,7 @@ class Stock:
             self.NET_PROFIT = 0
             self.NET_PROFIT_MEAN4 = 0
 
-        # reverse
-        self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
-        self.df_day = self.df_day.drop_duplicates(subset='date', keep="first")
-
-        self.df_minute = self.df_minute.reindex(index=self.df_minute.index[::-1])
-
-        # re-sample
-        self.df_h1 = resample_to_interval(self.df_minute, interval=60)
-        self.df_h4 = resample_to_interval(self.df_minute, interval=240)
-        self.df_w1 = resample_to_interval(self.df_day, interval=10080)
-
-        try:
-            # print('Size Days #', self.code, len(self.df_day))
-            self.consensus_day = SummaryConsensus(self.df_day)
-            # self.consensus_minute = SummaryConsensus(self.df_minute)
-        except Exception as ex:
-            print('Something went wrong', ex)
-            raise ex
-
+    def calculate_indicators(self):
         if not self.df_h1.empty:
             self.df_h1['SMA_5'] = talib.SMA(self.df_h1['close'], timeperiod=5)
             self.df_h1['SMA_10'] = talib.SMA(self.df_h1['close'], timeperiod=10)
@@ -275,119 +297,17 @@ class Stock:
             self.CDLXSIDEGAP3METHODS = talib.CDLXSIDEGAP3METHODS(self.df_day['open'].values, self.df_day['high'].values,
                                                                  self.df_day['low'].values, self.df_day['close'].values)
 
-            # values = []
-            # for index, cci in self.df_day['cci'].items():
-            #     v = 0
-            #     if index >= (len(self.df_o) - 1) or index <= 0:
-            #         v = 0
-            #     else:
-            #         if (cci < self.df_day['cci'].iloc[index + 1]) and (cci < self.df_day['cci'].iloc[index - 1]):
-            #             v = -1
-            #         elif (cci > self.df_day['cci'].iloc[index + 1]) and (cci > self.df_day['cci'].iloc[index - 1]):
-            #             v = 1
-            #         else:
-            #             v = 0
-            #     values.append(v)
-            # self.df_day['cci_curve'] = pd.Series(values)
+            # 4 weeks
+            try:
+                self.SMA_200_20 = talib.SMA(self.df_day['close'], timeperiod=200).iloc[-20]
+            except:
+                self.SMA_200_20 = 0
 
-        # 4 weeks
-        try:
-            self.SMA_200_20 = talib.SMA(self.df_day['close'], timeperiod=200).iloc[-20]
-        except:
-            self.SMA_200_20 = 0
-
-        self.LOW_52W = self.df_day['low'].head(260).min()
-        self.HIGH_52W = self.df_day['high'].head(260).max()
-
-    def __load_finance_info(self):
-        # Load finance info
-        try:
-            sql_finance_info = """select * from tbl_finance_info as ti where ti.code='""" + self.code + """' order by year_period desc, quarter_period desc limit 4"""
-            finance_info_data = pd.read_sql_query(sql_finance_info, self.conn)
-            self.df_finance = pd.DataFrame(finance_info_data)  # data-frame finance information
-        except pd.io.sql.DatabaseError as ex:
-            print("No finance information")
-
-    # Load 1000 days = 3 years
-    def __load_price_board_day(self, length=1000):
-        try:
-            sql_resolution_d = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
-                length)
-            self.df_day = pd.DataFrame(pd.read_sql_query(sql_resolution_d, self.conn))
-            self.df_day['date'] = pd.to_datetime(self.df_day['date'], unit='s')
-        except pd.io.sql.DatabaseError as ex:
-            print("Something went wrong", ex)
-
-    # Load 6k minute = 100 hours
-    def __load_price_board_minute(self, length=6000):
-        try:
-            sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
-                length)
-            self.df_minute = pd.DataFrame(pd.read_sql_query(sql_resolution_m, self.conn))
-            self.df_minute['date'] = pd.to_datetime(self.df_minute['date'], unit='s')
-        except pd.io.sql.DatabaseError as ex:
-            print("Something went wrong")
+            self.LOW_52W = self.df_day['low'].head(260).min()
+            self.HIGH_52W = self.df_day['high'].head(260).max()
 
     def f_get_current_price(self):
         return self.df_day['close'].iloc[-1]
-
-    def f_check_has_value(self):
-        return not self.df_day.empty
-
-    # Kiem tra gia tri giao dich trong phien. Toi thieu 3ty, recommend 5ty, best >10ty
-    def f_check_gia_tri_giao_dich_trong_phien(self, value=5000000000.0):
-        return (not self.df_day.empty and self.LAST_V_SMA_20 * self.CURRENT_CLOSE) >= value
-
-    # last changed
-    def f_last_changed(self):
-        return self.df_day['changed'].iloc[-1]
-
-    # Check gia chua tang qua 3 phien lien tiep
-    def f_check_price_continous_jump(self, step=3):
-        return not (self.df_day['close'].iloc[-1] > self.df_day['close'].iloc[-2] > self.df_day['close'].iloc[-3])
-
-    def f_1stRSI(self):
-        try:
-            return self.df_day['rsi'].iloc[-1]
-        except:
-            return 0
-
-    def f_2ndRSI(self):
-        try:
-            return self.df_day['rsi'].iloc[-2]
-        except:
-            return 0
-
-    def f_3rdRSI(self):
-        try:
-            return self.df_day['rsi'].iloc[-3]
-        except:
-            return 0
-
-    def f_1stCCI(self):
-        return self.df_day['cci'].iloc[-1]
-
-    def f_cci_3_days_down(self):
-        return self.df_day['cci'].iloc[-1] < self.df_day['cci'].iloc[-2] < self.df_day['cci'].iloc[-3]
-
-    def f_2ndCCI(self):
-        return self.df_day['cci'].iloc[-2]
-
-    def f_3rdCCI(self):
-        return self.df_day['cci'].iloc[-3]
-
-    # upper, middle, lower
-    def f_bband(self):
-        # close, matype = MA_Type.T3
-        return talib.BBANDS(self.df_day['close'], timeperiod=5, matype=talib.MA_Type.T3)
-
-    # macd, macdsignal, macdhist = MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
-    def f_macd(self):
-        return talib.MACD(self.df_day['close'], fastperiod=12, slowperiod=26, signalperiod=9)
-
-    # fastk, fastd = STOCHRSI(close, timeperiod=14, fastk_period=5, fastd_period=3, fastd_matype=0)
-    def f_stochrsi(self):
-        return talib.STOCHRSI(self.df_day['close'], timeperiod=14, fastk_period=5, fastd_period=3, fastd_matype=0)
 
     def f_total_vol(self):
         return self.df_day['volume'].iloc[-1]
@@ -486,9 +406,16 @@ class Stock:
         compares = self.df_day['volume'] > self.df_day['volume'].shift()
         return compares.tail(window).all()
 
+    # Khoi luong dot pha 30 so voi trung binh 20 phien truoc do
+    def volume_break(self, window=20, breakout=50):
+        df = self.df_day.copy()
+        df['VOL_SMA20'] = talib.SMA(df['volume'], timeperiod=window)
+        return (df['volume'].iloc[-1] > df['VOL_SMA20'].tail(window) * (1.0 + breakout / 100)).tail(1).all()
+
     # Giá tăng liên tục window phiên.
-    def price_increase(self, window=5):
+    def price_increase(self, window=3):
         compares = self.df_day['close'] > self.df_day['close'].shift()
+        print(compares.tail(window))
         return compares.tail(window).all()
 
     def f_check_two_crows(self):
@@ -569,8 +496,8 @@ class Stock:
         # print('_span_a %s' % self.df_day['{}_span_1'.format(name)])
         # print('compare %s' % (self.df_day['{}_ks9'.format(name)] < self.df_day['{}_span_a'.format(name)]))
 
-        print('%s' % (self.df_day['{}_span_a'.format(name)]))
-        print('%s' % (self.df_day['{}_span_a'.format(name)] < self.df_day['open']))
+        # print('%s' % (self.df_day['{}_span_a'.format(name)]))
+        # print('%s' % (self.df_day['{}_span_a'.format(name)] < self.df_day['open']))
 
         # BreakOutAllKuMoCloud- Mua dai han
         # Chikou back26 > Komu va Kumosen hay chilku cat len Kumo va Kumo sen;
@@ -768,7 +695,6 @@ def resample_to_interval(dataframe: pd.DataFrame, interval):
     :return:
     """
     df = dataframe.copy()
-    print(df)
     # df['date'] = pd.to_datetime(df['date'], unit='s')
     df = df.set_index(pd.DatetimeIndex(df["date"]))
     ohlc_dict = {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
@@ -794,4 +720,6 @@ if __name__ == '__main__':
     # self.df_h1 = resample_to_interval(self.df_minute, interval='60m')
     # print(s.df_minute)
     # print(df_h1)
-    print(s.dellphic(timeframe='h1'))
+    # print(s.dellphic(timeframe='h1'))
+    print(s.volume_break())
+    # print(s.price_increase(window=5))
