@@ -68,6 +68,7 @@ def get_prices_n_days(stock, days, resolution="D", time_slot_size=15):
 
     inputs = pd.DataFrame.from_dict(get_prices(stock, resolution, n_days_ago.timestamp(), today.timestamp()))
 
+    select
 
     data = pd.concat([data, inputs], ignore_index=True, sort=False)
     data.drop_duplicates(inplace=True, ignore_index=True)

@@ -17,9 +17,9 @@ class Stock:
         # Load finance info
         self.__load_finance_info()
         # Load price board at $D
-        self.__load_price_board_day()
+        self.__load_price_board_day(length=length)
         # Load price board at $M
-        self.__load_price_board_minute()
+        self.__load_price_board_minute(length=(5 * length))
 
         # reverse
         self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
@@ -415,7 +415,6 @@ class Stock:
     # Giá tăng liên tục window phiên.
     def price_increase(self, window=3):
         compares = self.df_day['close'] > self.df_day['close'].shift()
-        print(compares.tail(window))
         return compares.tail(window).all()
 
     def f_check_two_crows(self):

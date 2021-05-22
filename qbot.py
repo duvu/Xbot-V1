@@ -46,7 +46,8 @@ bot.allowed_commands = [
     '?TICKER',
     '?AMARK',
     '?GTLT',
-    '?VB'
+    '?VB',
+    '?TRENDING'
 ]
 bot.good_code = []
 bot.company_list = []
@@ -74,7 +75,7 @@ def reload_company_list():
 
 def gtlt_worker(code, window):
     try:
-        s = Stock(code=code)
+        s = Stock(code=code, length=2*window)
         if s.price_increase(window=window):
             return code
         del s
@@ -84,7 +85,7 @@ def gtlt_worker(code, window):
 
 def volume_break_worker(code, window, breakout):
     try:
-        s = Stock(code=code)
+        s = Stock(code=code, length=window * 2)
         if s.volume_break(window=window, breakout=breakout):
             # return code
             return [
@@ -326,16 +327,13 @@ async def on_message(message):
     if message.author.id == bot.user.id:
         return
 
-    if PYTHON_ENVIRONMENT == 'development':
-        print(message.channel.id, message.author.id, message.author, message.content)
-
+    print(message.channel.id, message.author.id, message.author, message.content)
     # Only allow run bot in bot.channel_list
     msg = message.content.upper()
     ctx = message.channel
-
+    msg_a = msg.split(' ')
     # Process message and insert to db for STAT here
-
-    matches = [x for x in bot.company_list_all if x in msg]
+    matches = [x for x in bot.company_list_all if x in msg_a]
     if len(matches) > 0:
         # Insert into database
         print('### MATCH %s' % matches)
@@ -352,12 +350,8 @@ async def on_message(message):
                 print(xh)
         elif message.channel.id in bot.channel_list:
             cmd = msg.split(' ')[:1][0]
+            print('Command: %s' % cmd)
             if cmd in bot.allowed_commands:
-                #     symbols = msg.split(' ')[1:]
-                #     await ctx.send('`{}` mã : `{}`'.format(len(symbols), ', '.join(symbols)))
-                #     symbols, mean, corr = calc_correlation(symbols, 120)
-                #     result = optimize_profit(symbols, mean, corr)
-                #     await ctx.send(result.to_string())
                 await bot.process_commands(message)
             else:
                 xh = "Hãy dùng cú pháp: ```?mtp mã_ck1 mã_ck2 ....```"
@@ -377,8 +371,8 @@ async def ticker(ctx, *args):
 # Gia tang lien tuc x phien
 @bot.group()
 async def gtlt(ctx, *args):
-    p = mp.Pool(5)
-    window = int(args[0]) if (len(args) > 0) else 5
+    p = mp.Pool(mp.cpu_count())
+    window = int(args[0]) if (len(args) > 0) else 3
     codes = [x for x in p.starmap(gtlt_worker, zip(bot.company_list, repeat(window))) if x is not None]
     p.close()
     p.join()
@@ -412,6 +406,19 @@ async def vb(ctx, *args):
             await ctx.send('```%s```' % w[1900:])
         else:
             await ctx.send('Danh sách khối lượng tăng đột biến đáng chú ý.\n ```%s```' % w)
+
+
+@bot.group()
+async def trending(ctx, *args):
+    window = float(args[0]) if (len(args) > 0) else 24.0  # default 24hour
+    limit = int(args[1]) if (len(args) > 1) else 10   # default limit 10 top
+    conn, cursor = get_connection()
+    sql_query = pd.read_sql_query('''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > (now() - ''' + str(window*3600) + ''' ) group by symbol order by count desc limit ''' + str(limit), conn)
+    trending_list = pd.DataFrame(sql_query)
+    close_connection(conn)
+
+    await ctx.send('Top %s trending last %s hours ```%s```' % (limit, window, trending_list.to_string()), delete_after=180.0)
+    await ctx.message.delete()
 
 
 @bot.group()
