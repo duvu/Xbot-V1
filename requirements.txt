@@ -1,3 +1,5 @@
+cacheout
+feedparser
 aiocron
 numpy
 pymysql

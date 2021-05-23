@@ -1,11 +1,12 @@
 # This example requires the 'members' privileged intents
+import base64
 import os
 from datetime import datetime, timedelta
 from os import path
 import re
 
 import discord
-import pymysql
+import feedparser
 import pandas as pd
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
@@ -13,7 +14,10 @@ import queue
 import multiprocessing as mp
 import aiocron
 from itertools import repeat
+from cacheout import Cache
+
 from mpt import calc_correlation, optimize_profit
+
 from stock import Stock
 from util import volume_break_load_cached, volume_break_save_cached, get_connection, close_connection
 
@@ -38,6 +42,8 @@ bot.channel_black_list = [843790719877775380, 826636905475080293]  # room coding
 bot.bl_words = ['doanh thu', 'Doanh thu', 'DOANH THU']
 bot.message_to_delete = queue.Queue()
 bot.stock_objects = {}
+
+f319x = Cache(maxsize=100, ttl=720)
 
 bot.allowed_commands = [
     '?MTP', '?MPT',
@@ -165,8 +171,8 @@ def insert_mentioned_code(matches, mentioned_at, mentioned_by_id, mentioned_by, 
             try:
                 cursor.execute(sql_string, (x, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message))
                 conn.commit()
-            except:
-                print('[ERROR] Something went wrong')
+            except Exception as ex:
+                print('[ERROR] Something went wrong %s' % ex)
         close_connection(conn)
 
 
@@ -236,6 +242,40 @@ async def dellphic_hourly():
 #
 #     bot.stock_objects = {x: Stock(x) for x in bot.company_list}
 #     print('Total Stocks loaded %s' % len(bot.stock_objects))
+
+def get_key_x(entry):
+    if hasattr(entry, 'slash_comments'):
+        return entry.id + entry.slash_comments
+    else:
+        return entry.id
+
+
+# Every 10 minutes, read RSS from F319 and parsing stock code.
+@tasks.loop(minutes=9)
+async def f319():
+    NewsFeed = feedparser.parse('http://f319.com/forums/-/index.rss')
+    for entry in NewsFeed.entries:
+        # Check if entry processed already
+        key_x = get_key_x(entry)
+        if f319x.get(key_x) == 'processed':
+            print('Processed!')
+            continue
+
+        f319x.set(key_x, 'processed')
+        f319_msg = entry.title + entry.summary
+        for x in bot.bl_words:
+            f319_msg = f319_msg.replace(x, '')
+
+        published = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
+        msg_a = re.split(r'[`\-=~!@#$%^&*()_+\[\]{};\'\\:"|<,./<>? ]', f319_msg)
+        # Process message and insert to db for STAT here
+        matches = [x for x in bot.company_list_all if x in msg_a]
+        if len(matches) > 0:
+            # Insert into database
+            print('### MATCH %s' % matches)
+            insert_mentioned_code(matches, published, entry.author, entry.author, 'f319', entry.title)
+        else:
+            print('### NO MATCHES %s' % entry.title)
 
 
 @tasks.loop(seconds=15)
@@ -325,7 +365,10 @@ async def on_message(message):
         for x in bot.bl_words:
             msg_x = msg_x.replace(x, '')
 
-        msg_a = re.split('; |, |\\*|\n', msg_x)  # msg_x.split(' ')
+        msg_a = re.split(r'[`\-=~!@#$%^&*()_+\[\]{};\'\\:"|<,./<> ]', msg_x)  # msg_x.split(' ')
+        # msg_a = re.split('; |, |\\*|\n | |\\? |! |_ |- |. | |\\# |$', msg_x)  # msg_x.split(' ')
+        # msg_a = re.split('; |, |\\* |\n | ', msg_x)  # msg_x.split(' ')
+
         # Process message and insert to db for STAT here
         matches = [x for x in bot.company_list_all if x in msg_a]
         if len(matches) > 0:
@@ -333,7 +376,7 @@ async def on_message(message):
             print('### MATCH %s' % matches)
             insert_mentioned_code(matches, message.created_at, message.author.id, message.author, 'discord', message.content)
         else:
-            print('### NO MATCHES')
+            print('### NO MATCHES', msg_a)
 
     if msg.startswith('?'):
         if message.channel.id not in bot.channel_list:
@@ -408,7 +451,7 @@ async def trending(ctx, *args):
     limit = int(args[1]) if (len(args) > 1) else 10  # default limit 10 top
     conn, cursor = get_connection()
     query_string = '''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > date_sub(now(), interval ''' + str(
-        window * 3600) + ''' hour) group by symbol order by count desc limit ''' + str(limit)
+        window) + ''' hour) group by symbol order by count desc limit ''' + str(limit)
     sql_query = pd.read_sql_query(query_string, conn)
     trending_list = pd.DataFrame(sql_query)
     close_connection(conn)
@@ -444,6 +487,11 @@ async def info(ctx, *args):
             print(msg)
 
 
+def is_women(roles):
+    print('Roles', roles)
+    return any(x.name == 'Nữ' for x in roles)
+
+
 @bot.group()
 async def mtp(ctx, *args):
     symbols = args
@@ -451,7 +499,8 @@ async def mtp(ctx, *args):
         symbols = args[0].replace(' ', '').split(',')
 
     if PYTHON_ENVIRONMENT == 'production':
-        await ctx.send('`Người anh em #{} đang kiểm tra {}` mã : `{}`'.format(ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
+        ac = 'chị' if is_women(ctx.message.author.roles) else 'anh'
+        await ctx.send('`Người {} em #{} đang kiểm tra {}` mã : `{}`'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
         print('Symbols', symbols)
         symbols, mean, corr = calc_correlation(symbols, 120)
 
@@ -461,10 +510,13 @@ async def mtp(ctx, *args):
         await ctx.send(result.to_string(), delete_after=180.0)
         await ctx.message.delete()
     else:
+
+        print(ctx.message.author.roles)
         msg = '`User #{} đang kiểm tra {}` mã : `{}`'.format(ctx.message.author, len(symbols), ', '.join(symbols))
         print(msg)
 
 
 slow.start()
+f319.start()
 # refresh_data.start()
 bot.run(TOKEN)
