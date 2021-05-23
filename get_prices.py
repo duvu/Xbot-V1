@@ -3,6 +3,8 @@ import json
 import pandas as pd
 from datetime import datetime, timedelta
 
+from util import get_connection, close_connection
+
 STOCK_URL = 'https://api.vietstock.vn/ta/history'
 
 
@@ -67,10 +69,17 @@ def get_prices_n_days(stock, days, resolution="D", time_slot_size=15):
             n_days_ago += timedelta(days=time_slot_size)
 
     inputs = pd.DataFrame.from_dict(get_prices(stock, resolution, n_days_ago.timestamp(), today.timestamp()))
-
-    select
-
     data = pd.concat([data, inputs], ignore_index=True, sort=False)
     data.drop_duplicates(inplace=True, ignore_index=True)
     data.tail(days).to_dict()
     return data.tail(days).reset_index(drop=True).to_dict()
+
+
+def get_prices_n_days1(code, days, resolution="D", time_slot_size=15):
+    conn, cursor = get_connection()
+    sql_string = """select code, t, o, h, l, c, v  from tbl_price_board_day as pb where pb.code='""" + code + """' order by t desc limit """ + str(days*2)
+    df_day = pd.DataFrame(pd.read_sql_query(sql_string, conn))
+    # print('sql_string', sql_string)
+    # print('DF_DAY', df_day)
+    close_connection(conn)
+    return df_day.tail(days).to_dict()

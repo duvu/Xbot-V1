@@ -2,6 +2,7 @@
 import os
 from datetime import datetime, timedelta
 from os import path
+import re
 
 import discord
 import pymysql
@@ -14,7 +15,7 @@ import aiocron
 from itertools import repeat
 from mpt import calc_correlation, optimize_profit
 from stock import Stock
-from util import volume_break_load_cached, volume_break_save_cached
+from util import volume_break_load_cached, volume_break_save_cached, get_connection, close_connection
 
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
@@ -31,12 +32,10 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
 CHANNEL_ID = os.getenv('DISCORD_CHANNEL')
 PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT')
-DB_HOST = os.getenv('DB_HOST')
-DB_NAME = os.getenv('DB_NAME')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
 
 bot.channel_list = [815900646419071000, 818029515028168714]
+bot.channel_black_list = [843790719877775380, 826636905475080293]  # room coding --> not check code.
+bot.bl_words = ['doanh thu', 'Doanh thu', 'DOANH THU']
 bot.message_to_delete = queue.Queue()
 bot.stock_objects = {}
 
@@ -54,15 +53,15 @@ bot.company_list = []
 bot.company_list_all = []
 
 
-def get_connection():
-    conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
-    cursor = conn.cursor()
-    return conn, cursor
-
-
-def close_connection(conn):
-    if conn:
-        conn.close()
+# def get_connection():
+#     conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
+#     cursor = conn.cursor()
+#     return conn, cursor
+#
+#
+# def close_connection(conn):
+#     if conn:
+#         conn.close()
 
 
 def reload_company_list():
@@ -75,7 +74,7 @@ def reload_company_list():
 
 def gtlt_worker(code, window):
     try:
-        s = Stock(code=code, length=2*window)
+        s = Stock(code=code, length=2 * window)
         if s.price_increase(window=window):
             return code
         del s
@@ -120,7 +119,6 @@ def stock_worker(code):
                 s.EPS,
                 s.EPS_MEAN4,
                 s.f_get_current_price(),
-                s.f_last_changed() * 100,
             ]
 
         # s.consensus_day.evaluate_ichimoku()
@@ -183,16 +181,6 @@ async def on_ready():
     sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', conn)
     bot.company_list_all = list(pd.DataFrame(sql_query)['Code'])
     close_connection(conn)
-
-    # if PYTHON_ENVIRONMENT == 'development':
-    #     # sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC limit 20''', bot.conn)
-    #     sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7)) limit 20''', bot.conn)
-    #     bot.company_list = list(pd.DataFrame(sql_query)['code'])
-    #     bot.conn.close()
-    # else:
-    #     sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))''', bot.conn)
-    #     bot.company_list = list(pd.DataFrame(sql_query)['code'])
-    #     bot.conn.close()
 
 
 # At 16:00 on every day-of-week from Monday through Friday.
@@ -328,18 +316,24 @@ async def on_message(message):
         return
 
     print(message.channel.id, message.author.id, message.author, message.content)
-    # Only allow run bot in bot.channel_list
     msg = message.content.upper()
     ctx = message.channel
-    msg_a = msg.split(' ')
-    # Process message and insert to db for STAT here
-    matches = [x for x in bot.company_list_all if x in msg_a]
-    if len(matches) > 0:
-        # Insert into database
-        print('### MATCH %s' % matches)
-        insert_mentioned_code(matches, message.created_at, message.author.id, message.author, 'discord', message.content)
-    else:
-        print('### NO MATCHES')
+
+    # Only allow run bot in bot.channel_list
+    if message.channel.id not in bot.channel_black_list:
+        msg_x = message.content.upper()
+        for x in bot.bl_words:
+            msg_x = msg_x.replace(x, '')
+
+        msg_a = re.split('; |, |\\*|\n', msg_x)  # msg_x.split(' ')
+        # Process message and insert to db for STAT here
+        matches = [x for x in bot.company_list_all if x in msg_a]
+        if len(matches) > 0:
+            # Insert into database
+            print('### MATCH %s' % matches)
+            insert_mentioned_code(matches, message.created_at, message.author.id, message.author, 'discord', message.content)
+        else:
+            print('### NO MATCHES')
 
     if msg.startswith('?'):
         if message.channel.id not in bot.channel_list:
@@ -411,9 +405,11 @@ async def vb(ctx, *args):
 @bot.group()
 async def trending(ctx, *args):
     window = float(args[0]) if (len(args) > 0) else 24.0  # default 24hour
-    limit = int(args[1]) if (len(args) > 1) else 10   # default limit 10 top
+    limit = int(args[1]) if (len(args) > 1) else 10  # default limit 10 top
     conn, cursor = get_connection()
-    sql_query = pd.read_sql_query('''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > (now() - ''' + str(window*3600) + ''' ) group by symbol order by count desc limit ''' + str(limit), conn)
+    query_string = '''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > date_sub(now(), interval ''' + str(
+        window * 3600) + ''' hour) group by symbol order by count desc limit ''' + str(limit)
+    sql_query = pd.read_sql_query(query_string, conn)
     trending_list = pd.DataFrame(sql_query)
     close_connection(conn)
 
@@ -429,7 +425,7 @@ async def amark(ctx, *args):
         p.close()
         p.join()
 
-        results_buy = pd.DataFrame(buy_rows, columns=["Session", "Code", "Volume", "EPS", "EPS_MEAN4", 'Price', 'Changed'])
+        results_buy = pd.DataFrame(buy_rows, columns=["Session", "Code", "Volume", "EPS", "EPS_MEAN4", 'Price'])
         results_buy.to_excel("outputs/amark.xlsx")
     cached = datetime.now().strftime("%b%d")
 
@@ -439,11 +435,13 @@ async def amark(ctx, *args):
 @bot.group()
 async def info(ctx, *args):
     print(args)
-    msg = ''' Nguyên tắc tối ưu hóa là tối đa lợi nhuận kỳ vọng dựa trên cùng một mức độ rủi ro kỳ vọng như nhau. Tuy nhiên, tôi lưu ý rằng: (i) danh mục tối ưu giả định bạn muốn nắm giữ cổ phiếu bạn chọn trên cở sở lâu dài. Tỷ lệ % chính là sự phân bổ số tiền nhiều/ít cho các cổ phiếu bạn chọn; (ii) định kỳ bạn có thể kiểm tra xem tỷ lệ % thay đổi thế nào để hiểu là nên rebalancing thế nào (mua thêm/bán bớt như các quỹ đầu tư vẫn làm); (iii) nếu dùng ngắn hạn thì tối ưu hóa kiểu này phù hợp nhất với kiểu giao dịch theo xu hướng (momentum) là kiểu giao dịch khá phổ biến. Và đặc biệt là (iv) theo kinh nghiệm của tôi cách dùng hữu ích nhất chính là nếu bạn đang phân vân giữa các cổ phiếu cùng nhóm ngành, cùng kiểu (ví dụ đánh đấm) thì dùng máy này sẽ gợi ý bạn chọn cổ phiếu tốt hơn trong số đó. Dữ liệu dùng để tính toán hiện tại là giá 120 ngày gần nhất và giả định lãi suất ngân hàng 12 tháng 7%. Giai đoạn này các bạn tham khảo là chính. Sau đó, cái máy này sẽ cần phải nâng cấp để nó phân biệt được 3 giai đoạn tăng/giảm/sideways để từ đó mới có gợi ích phân bổ tốt hơn'''
-    if PYTHON_ENVIRONMENT == 'production':
-        await ctx.send('```%s```' % msg)
-    else:
-        print(msg)
+    with(open('content/mpt.txt', 'rt')) as f:
+        msg = f.read()
+        if PYTHON_ENVIRONMENT == 'production':
+            await ctx.send('```%s```' % msg, delete_after=300.0)
+            ctx.message.delete()
+        else:
+            print(msg)
 
 
 @bot.group()
@@ -453,19 +451,18 @@ async def mtp(ctx, *args):
         symbols = args[0].replace(' ', '').split(',')
 
     if PYTHON_ENVIRONMENT == 'production':
-        await ctx.send('`User #{} đang kiểm tra {}` mã : `{}`'.format(ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
+        await ctx.send('`Người anh em #{} đang kiểm tra {}` mã : `{}`'.format(ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
+        print('Symbols', symbols)
         symbols, mean, corr = calc_correlation(symbols, 120)
+
+        print('Symbols', symbols)
+
         result = optimize_profit(symbols, mean, corr)
         await ctx.send(result.to_string(), delete_after=180.0)
         await ctx.message.delete()
     else:
         msg = '`User #{} đang kiểm tra {}` mã : `{}`'.format(ctx.message.author, len(symbols), ', '.join(symbols))
         print(msg)
-        # await ctx.send('`User #{} đang kiểm tra {}` mã : `{}`'.format(ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
-        # symbols, mean, corr = calc_correlation(symbols, 120)
-        # result = optimize_profit(symbols, mean, corr)
-        # await ctx.send(result.to_string(), delete_after=180.0)
-        # await ctx.message.delete()
 
 
 slow.start()
