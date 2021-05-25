@@ -19,7 +19,7 @@ from cacheout import Cache
 from mpt import calc_correlation, optimize_profit
 
 from stock import Stock
-from util import volume_break_load_cached, volume_break_save_cached, get_connection, close_connection
+from util import volume_break_load_cached, volume_break_save_cached, get_connection, close_connection, resample_trending_interval
 
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
@@ -39,7 +39,12 @@ PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT')
 
 bot.channel_list = [815900646419071000, 818029515028168714]
 bot.channel_black_list = [843790719877775380, 826636905475080293]  # room coding --> not check code.
-bot.bl_words = ['doanh thu', 'Doanh thu', 'DOANH THU']
+bot.bl_words = [
+    'doanh thu',
+    'Doanh thu',
+    'DOANH THU',
+    'VNI'
+]
 bot.message_to_delete = queue.Queue()
 bot.stock_objects = {}
 
@@ -447,17 +452,37 @@ async def vb(ctx, *args):
 
 @bot.group()
 async def trending(ctx, *args):
-    window = float(args[0]) if (len(args) > 0) else 24.0  # default 24hour
-    limit = int(args[1]) if (len(args) > 1) else 10  # default limit 10 top
     conn, cursor = get_connection()
-    query_string = '''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > date_sub(now(), interval ''' + str(
-        window) + ''' hour) group by symbol order by count desc limit ''' + str(limit)
-    sql_query = pd.read_sql_query(query_string, conn)
-    trending_list = pd.DataFrame(sql_query)
-    close_connection(conn)
+    symbol = args[0].upper() if (len(args) > 0) else ''
 
-    await ctx.send('Top %s trending last %s hours ```%s```' % (limit, window, trending_list.to_string()), delete_after=180.0)
-    await ctx.message.delete()
+    if symbol in bot.company_list_all:
+        window = float(args[1]) if (len(args) > 1) else 24.0  # default 24hour
+        limit = int(args[1]) if (len(args) > 2) else 10  # default limit 10 top
+        query_string = '''select mentioned_at as date, symbol, 1 as count from tbl_mentions where symbol=\"''' + symbol + '''\" and mentioned_at > date_sub(now(), interval ''' + str(
+            window) + ''' hour) order by date desc'''
+        sql_query = pd.read_sql_query(query_string, conn)
+        trending_list = pd.DataFrame(sql_query)
+        close_connection(conn)
+        # Re-sample
+        x_trend = resample_trending_interval(trending_list, 60)
+        x_trend = x_trend.reindex(index=x_trend.index[::-1])
+        x_trend.reset_index(inplace=True, drop=True)
+        x_trend = x_trend.head(int(window))
+
+        await ctx.send('%s in trend last %s hours ```%s```' % (symbol, window, x_trend.to_string()), delete_after=300.0)
+        await ctx.message.delete()
+
+    else:
+        window = float(args[0]) if (len(args) > 0) else 24.0  # default 24hour
+        limit = int(args[1]) if (len(args) > 1) else 10  # default limit 10 top
+        query_string = '''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > date_sub(now(), interval ''' + str(
+            window) + ''' hour) group by symbol order by count desc limit ''' + str(limit)
+        sql_query = pd.read_sql_query(query_string, conn)
+        trending_list = pd.DataFrame(sql_query)
+        close_connection(conn)
+
+        await ctx.send('Top %s trending last %s hours ```%s```' % (limit, window, trending_list.to_string()), delete_after=180.0)
+        await ctx.message.delete()
 
 
 @bot.group()
