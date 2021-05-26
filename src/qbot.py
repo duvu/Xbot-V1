@@ -460,6 +460,8 @@ async def trending(ctx, *args):
     conn, cursor = get_connection()
     symbol = args[0].upper() if (len(args) > 0) else ''
 
+    print('%s' % ctx.invoked_subcommand)
+
     if symbol in bot.company_list_all:
         window = float(args[1]) if (len(args) > 1) else 24.0  # default 24hour
         limit = int(args[1]) if (len(args) > 2) else 10  # default limit 10 top
@@ -517,8 +519,17 @@ async def info(ctx, *args):
             print(msg)
 
 
+@bot.command()
+async def mpt(ctx, *args):
+    await mpx(ctx, *args)
+
+
 @bot.group()
 async def mtp(ctx, *args):
+    await mpx(ctx, *args)
+
+
+async def mpx(ctx, *args):
     symbols = args
     if len(args) == 1 and ',' in args[0]:
         symbols = args[0].replace(' ', '').split(',')
