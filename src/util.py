@@ -38,6 +38,11 @@ def volume_break_save_cached(s):
         f.write(s)
 
 
+def is_women(roles):
+    print('Roles', roles)
+    return any(x.name == 'Nữ' for x in roles)
+
+
 def resample_trending_interval(dataframe: pd.DataFrame, interval):
     df = dataframe.copy()
     df = df.set_index(pd.DatetimeIndex(df["date"]))

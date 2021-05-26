@@ -19,7 +19,7 @@ from cacheout import Cache
 from mpt import calc_correlation, optimize_profit
 
 from stock import Stock
-from util import volume_break_load_cached, volume_break_save_cached, get_connection, close_connection, resample_trending_interval
+from util import volume_break_load_cached, volume_break_save_cached, get_connection, close_connection, resample_trending_interval, is_women
 
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
@@ -231,7 +231,7 @@ async def dellphic_hourly():
     if len(good_codes) > 0:
         await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
     else:
-        await bot.default_channel.send('Dellphic h1 empty', delete_after=180.0)
+        await bot.default_channel.send('Dellphic h1 empty', delete_after=10.0)
 
 
 # @tasks.loop(minutes=1)
@@ -514,33 +514,32 @@ async def info(ctx, *args):
             print(msg)
 
 
-def is_women(roles):
-    print('Roles', roles)
-    return any(x.name == 'Nữ' for x in roles)
-
-
 @bot.group()
 async def mtp(ctx, *args):
     symbols = args
     if len(args) == 1 and ',' in args[0]:
         symbols = args[0].replace(' ', '').split(',')
 
+    symbols = [x.upper() for x in symbols]
     if PYTHON_ENVIRONMENT == 'production':
         ac = 'chị' if is_women(ctx.message.author.roles) else 'anh'
-        await ctx.send('`Người {} em #{} đang kiểm tra {}` mã : `{}`'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
+        await ctx.send('```Người {} em {} đang kiểm tra {} mã : {}```'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
         print('Symbols', symbols)
         symbols, mean, corr = calc_correlation(symbols, 120)
-
         print('Symbols', symbols)
-
         result = optimize_profit(symbols, mean, corr)
-        await ctx.send(result.to_string(), delete_after=180.0)
+        await ctx.send('```%s```' % result.to_string(), delete_after=180.0)
         await ctx.message.delete()
     else:
-
-        print(ctx.message.author.roles)
-        msg = '`User #{} đang kiểm tra {}` mã : `{}`'.format(ctx.message.author, len(symbols), ', '.join(symbols))
+        ac = 'chị' if is_women(ctx.message.author.roles) else 'anh'
+        msg = '`Người {} em #{} đang kiểm tra {}` mã : `{}`'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols))
         print(msg)
+        print('Symbols', symbols)
+        symbols, mean, corr = calc_correlation(symbols, 120)
+        print('Symbols', symbols)
+        result = optimize_profit(symbols, mean, corr)
+        print(ctx.message.author.roles)
+        print(result.to_string())
 
 
 slow.start()

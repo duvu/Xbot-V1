@@ -1,5 +1,5 @@
 ## https://stackoverflow.com/questions/59790285/how-to-solve-a-system-of-equations-and-constraints-for-portfolio-optimization
-from get_prices import get_prices_n_days1, get_prices_n_days
+from get_prices import get_prices_n_days
 import pandas as pd
 import numpy as np
 import scipy.optimize as optimize
@@ -48,8 +48,6 @@ def calc_correlation(symbols, days, progressCallback=None):
             continue
         available_symbols.append(symbol)
         closed = inputs['c']
-
-        print('close', closed)
 
         m, s, d = process_symbol_data(closed)
         mean[symbol] = m

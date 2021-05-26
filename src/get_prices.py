@@ -56,30 +56,39 @@ def get_prices(stock, resolution, from_date, to_date):
     return prices
 
 
-def get_prices_n_days(stock, days, resolution="D", time_slot_size=15):
-    today = datetime.now()
+# def get_prices_n_days(stock, days, resolution="D", time_slot_size=15):
+#     today = datetime.now()
+#
+#     n_days_ago = today - timedelta(days=int(days / 5) * 7 + 21)
+#     data = pd.DataFrame()
+#     if days > time_slot_size > 0:
+#         slot = int(days / time_slot_size)
+#         for i in range(slot, 0, -1):
+#             inputs = pd.DataFrame.from_dict(get_prices(stock, resolution, n_days_ago.timestamp(), (n_days_ago + timedelta(days=time_slot_size)).timestamp()))
+#             data = pd.concat([data, inputs], ignore_index=True, sort=False)
+#             n_days_ago += timedelta(days=time_slot_size)
+#
+#     inputs = pd.DataFrame.from_dict(get_prices(stock, resolution, n_days_ago.timestamp(), today.timestamp()))
+#     data = pd.concat([data, inputs], ignore_index=True, sort=False)
+#     data.drop_duplicates(inplace=True, ignore_index=True)
+#     data.tail(days).to_dict()
+#     return data.tail(days).reset_index(drop=True).to_dict()
 
-    n_days_ago = today - timedelta(days=int(days / 5) * 7 + 21)
-    data = pd.DataFrame()
-    if days > time_slot_size > 0:
-        slot = int(days / time_slot_size)
-        for i in range(slot, 0, -1):
-            inputs = pd.DataFrame.from_dict(get_prices(stock, resolution, n_days_ago.timestamp(), (n_days_ago + timedelta(days=time_slot_size)).timestamp()))
-            data = pd.concat([data, inputs], ignore_index=True, sort=False)
-            n_days_ago += timedelta(days=time_slot_size)
 
-    inputs = pd.DataFrame.from_dict(get_prices(stock, resolution, n_days_ago.timestamp(), today.timestamp()))
-    data = pd.concat([data, inputs], ignore_index=True, sort=False)
-    data.drop_duplicates(inplace=True, ignore_index=True)
-    data.tail(days).to_dict()
-    return data.tail(days).reset_index(drop=True).to_dict()
-
-
-def get_prices_n_days1(code, days, resolution="D", time_slot_size=15):
+def get_prices_n_days(code, days):
     conn, cursor = get_connection()
-    sql_string = """select code, t, o, h, l, c, v  from tbl_price_board_day as pb where pb.code='""" + code + """' order by t desc limit """ + str(days*2)
+    sql_string = """select t, o, h, l, c, v  from tbl_price_board_day as pb where pb.code='""" + code + """' order by t desc limit """ + str(days)
     df_day = pd.DataFrame(pd.read_sql_query(sql_string, conn))
-    # print('sql_string', sql_string)
-    # print('DF_DAY', df_day)
     close_connection(conn)
+    df_day = df_day.reindex(index=df_day.index[::-1])
+    df_day.reset_index(inplace=True, drop=True)
     return df_day.tail(days).to_dict()
+
+
+def main():
+    get_orig = get_prices_n_days('fpt', 10)
+    print('Data `%s`' % get_orig)
+
+
+if __name__ == "__main__":
+    main()
