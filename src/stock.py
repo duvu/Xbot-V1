@@ -1,27 +1,33 @@
 import pandas as pd
 import numpy as np
-import pymysql
 import talib
 
 from ichimoku5 import ichimoku5
+from util import get_connection
 
 
 class Stock:
     df_minute = None
+    df_h1 = None
+    df_h4 = None
     df_day = None
+    df_w1 = None
     df_finance = None
 
     def __init__(self, code, resolution='D', update_last=False, length=365):
         self.code = code
-        self.resolution = resolution
-        self.conn = pymysql.connect(host='localhost', user='admin', password='123456', database='mystocks')
+        self.length = length
+        self.resolution = resolution  # main resolution
+        self.conn, cursor = get_connection()
+        self.init()
 
+    def init(self):
         # Load finance info
         self.__load_finance_info()
         # Load price board at $D
-        self.__load_price_board_day(length=length)
+        self.__load_price_board_day(length=self.length)
         # Load price board at $M
-        self.__load_price_board_minute(length=(5 * length))
+        self.__load_price_board_minute(length=(5 * self.length))
 
         # reverse
         self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
