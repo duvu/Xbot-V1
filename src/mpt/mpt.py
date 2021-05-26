@@ -1,5 +1,5 @@
 ## https://stackoverflow.com/questions/59790285/how-to-solve-a-system-of-equations-and-constraints-for-portfolio-optimization
-from get_prices import get_prices_n_days
+from mpt.get_prices import get_prices_n_days
 import pandas as pd
 import numpy as np
 import scipy.optimize as optimize

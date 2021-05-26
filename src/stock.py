@@ -3,7 +3,7 @@ import numpy as np
 import talib
 
 from ichimoku5 import ichimoku5
-from util import get_connection
+from db.database import get_connection
 
 
 class Stock:

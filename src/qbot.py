@@ -1,5 +1,4 @@
 # This example requires the 'members' privileged intents
-import base64
 import os
 from datetime import datetime, timedelta
 from os import path
@@ -17,10 +16,12 @@ import aiocron
 from itertools import repeat
 from cacheout import Cache
 
-from mpt import calc_correlation, optimize_profit
+from mpt.mpt import calc_correlation, optimize_profit
+from mpt.mpx import mpx
 
 from stock import Stock
-from util import volume_break_load_cached, volume_break_save_cached, get_connection, close_connection, resample_trending_interval, is_women
+from util import volume_break_load_cached, volume_break_save_cached, resample_trending_interval
+from db.database import get_connection, close_connection
 
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
@@ -63,18 +64,6 @@ bot.allowed_commands = [
 bot.good_code = []
 bot.company_list = []
 bot.company_list_all = []
-
-
-# def get_connection():
-#     conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
-#     cursor = conn.cursor()
-#     return conn, cursor
-#
-#
-# def close_connection(conn):
-#     if conn:
-#         conn.close()
-
 
 def reload_company_list():
     # Update company list
@@ -521,39 +510,14 @@ async def info(ctx, *args):
 
 @bot.command()
 async def mpt(ctx, *args):
+    """ MPT
+    """
     await mpx(ctx, *args)
 
 
 @bot.group()
 async def mtp(ctx, *args):
     await mpx(ctx, *args)
-
-
-async def mpx(ctx, *args):
-    symbols = args
-    if len(args) == 1 and ',' in args[0]:
-        symbols = args[0].replace(' ', '').split(',')
-
-    symbols = [x.upper() for x in symbols]
-    if PYTHON_ENVIRONMENT == 'production':
-        ac = 'chị' if is_women(ctx.message.author.roles) else 'anh'
-        await ctx.send('```Người {} em {} đang kiểm tra {} mã : {}```'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
-        print('Symbols', symbols)
-        symbols, mean, corr = calc_correlation(symbols, 120)
-        print('Symbols', symbols)
-        result = optimize_profit(symbols, mean, corr)
-        await ctx.send('```%s```' % result.to_string(), delete_after=180.0)
-        await ctx.message.delete()
-    else:
-        ac = 'chị' if is_women(ctx.message.author.roles) else 'anh'
-        msg = '`Người {} em #{} đang kiểm tra {}` mã : `{}`'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols))
-        print(msg)
-        print('Symbols', symbols)
-        symbols, mean, corr = calc_correlation(symbols, 120)
-        print('Symbols', symbols)
-        result = optimize_profit(symbols, mean, corr)
-        print(ctx.message.author.roles)
-        print(result.to_string())
 
 
 slow.start()

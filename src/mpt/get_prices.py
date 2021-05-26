@@ -3,7 +3,7 @@ import json
 import pandas as pd
 from datetime import datetime, timedelta
 
-from util import get_connection, close_connection
+from db.database import get_connection, close_connection
 
 STOCK_URL = 'https://api.vietstock.vn/ta/history'
 
