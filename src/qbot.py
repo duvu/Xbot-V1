@@ -100,7 +100,7 @@ def volume_break_worker(code, window, breakout):
             # return code
             return [
                 code,
-                s.f_total_vol(),
+                s.last_volume(),
                 s.f_get_current_price(),
             ]
         del s
@@ -122,11 +122,11 @@ def dellphic_worker(code, timeframe='d1'):
 def stock_worker(code):
     try:
         s = Stock(code=code)
-        if s.f_check_7_conditions() and s.f_total_vol() > 100000:
+        if s.f_check_7_conditions() and s.last_volume() > 100000:
             return [
                 s.LAST_SESSION,
                 code,
-                s.f_total_vol(),
+                s.last_volume(),
                 s.EPS,
                 s.EPS_MEAN4,
                 s.f_get_current_price(),
@@ -215,7 +215,7 @@ async def dellphic_daily():
 
 
 # At minute 1 past every hour from 9 through 15 on every day-of-week from Monday through Friday.
-@aiocron.crontab('30 2-8 * * 1-5')
+@aiocron.crontab('30 9-15 * * 1-5')
 async def dellphic_hourly():
     if PYTHON_ENVIRONMENT == 'development':
         bot.default_channel = bot.get_channel(815900646419071000)
@@ -230,6 +230,8 @@ async def dellphic_hourly():
 
     if len(good_codes) > 0:
         await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
+    else:
+        await bot.default_channel.send('Dellphic h1 empty', delete_after=180.0)
 
 
 # @tasks.loop(minutes=1)
@@ -256,7 +258,7 @@ def get_key_x(entry):
 
 
 # Every 10 minutes, read RSS from F319 and parsing stock code.
-@tasks.loop(minutes=9)
+@tasks.loop(minutes=5)
 async def f319():
     NewsFeed = feedparser.parse('http://f319.com/forums/-/index.rss')
     for entry in NewsFeed.entries:
@@ -487,7 +489,7 @@ async def trending(ctx, *args):
 
 @bot.group()
 async def amark(ctx, *args):
-    if not path.exists('outputs/amark.xlsx'):
+    if not path.exists('../outputs/amark.xlsx'):
         p = mp.Pool(5)
         buy_rows = [x for x in p.map(stock_worker, bot.company_list) if x is not None]
         p.close()
@@ -503,7 +505,7 @@ async def amark(ctx, *args):
 @bot.group()
 async def info(ctx, *args):
     print(args)
-    with(open('content/mpt.txt', 'rt')) as f:
+    with(open('../content/mpt.txt', 'rt')) as f:
         msg = f.read()
         if PYTHON_ENVIRONMENT == 'production':
             await ctx.send('```%s```' % msg, delete_after=300.0)

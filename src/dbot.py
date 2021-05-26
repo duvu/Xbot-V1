@@ -64,7 +64,7 @@ class MyClient(discord.Client):
                     [
                         s.LAST_SESSION,
                         code,
-                        s.f_total_vol(),
+                        s.last_volume(),
                         s.EPS,
                         s.EPS_MEAN4,
                         s.f_get_current_price(),
