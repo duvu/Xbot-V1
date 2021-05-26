@@ -1,6 +1,4 @@
-import base64
-import hashlib
-
+from dateutil.parser import parse
 import feedparser
 from cachetools import TTLCache
 
@@ -25,8 +23,11 @@ if __name__ == '__main__':
         #     f319x[key_x] = 'processed'
         #
         #     print(f319x[key_x])
-        print(entry.keys())
-        # print(entry.published)
+        # print(entry.keys())
+        print(entry.published)
+        print(parse(entry.published))
+        print(parse(entry.published).timestamp())
+
         # print(entry.title)
         # print(entry.author)
         # print(entry.authors)

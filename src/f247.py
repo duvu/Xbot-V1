@@ -4,7 +4,7 @@
 
 import feedparser
 from cachetools import TTLCache
-
+from dateutil.parser import parse
 
 URL = 'https://f247.com/posts.rss'
 
@@ -18,8 +18,10 @@ def main():
     # print(NewsFeed.entries)
     for entry in NewsFeed.entries:
         print('//---------------------XXX-----------------------//')
-        print(entry.keys())
-    #     print(entry.published)
+        # print(entry.keys())
+        print(entry.published)
+        print(parse(entry.published))
+        print(parse(entry.published).timestamp())
     #     print(entry.title)
     #     print(entry.summary)
         print(entry.id)

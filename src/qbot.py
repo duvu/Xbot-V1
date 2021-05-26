@@ -8,6 +8,7 @@ import re
 import discord
 import feedparser
 import pandas as pd
+from dateutil.parser import parse
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import queue
@@ -275,7 +276,7 @@ async def f319():
         for x in bot.bl_words:
             f319_msg = f319_msg.replace(x, '')
 
-        published = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
+        published = parse(entry.published)
         msg_a = re.split(r'[`\-=~!@#$%^&*()_+\[\]{};\'\\:"|<,./<>? ]', f319_msg)
         # Process message and insert to db for STAT here
         matches = [x for x in bot.company_list_all if x in msg_a]
