@@ -48,7 +48,7 @@ bot.bl_words = [
 bot.message_to_delete = queue.Queue()
 bot.stock_objects = {}
 
-f319x = Cache(maxsize=100, ttl=720)
+f319x = Cache(maxsize=300, ttl=720)
 
 bot.allowed_commands = [
     '?MTP', '?MPT',
@@ -260,12 +260,14 @@ def get_key_x(entry):
 # Every 10 minutes, read RSS from F319 and parsing stock code.
 @tasks.loop(minutes=5)
 async def f319():
-    NewsFeed = feedparser.parse('http://f319.com/forums/-/index.rss')
-    for entry in NewsFeed.entries:
+    f319FeedEntries = feedparser.parse('http://f319.com/forums/-/index.rss').entries
+    f247FeedEntries = feedparser.parse('https://f247.com/posts.rss').entries
+    feeds = [*f319FeedEntries, *f247FeedEntries]
+    for entry in feeds:
         # Check if entry processed already
         key_x = get_key_x(entry)
         if f319x.get(key_x) == 'processed':
-            print('Processed!')
+            # print('Processed!')
             continue
 
         f319x.set(key_x, 'processed')
@@ -367,7 +369,7 @@ async def on_message(message):
     ctx = message.channel
 
     # Only allow run bot in bot.channel_list
-    if message.channel.id not in bot.channel_black_list:
+    if not msg.startswith('?') and message.channel.id not in bot.channel_black_list:
         msg_x = message.content.upper()
         for x in bot.bl_words:
             msg_x = msg_x.replace(x, '')

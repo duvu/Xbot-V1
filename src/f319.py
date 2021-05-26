@@ -4,7 +4,7 @@ import hashlib
 import feedparser
 from cachetools import TTLCache
 
-NewsFeed = feedparser.parse('http://f319.com/forums/-/index.rss')
+# NewsFeed = feedparser.parse('http://f319.com/forums/-/index.rss')
 
 f319x = TTLCache(maxsize=100, ttl=1200)
 # Test
@@ -25,15 +25,16 @@ if __name__ == '__main__':
         #     f319x[key_x] = 'processed'
         #
         #     print(f319x[key_x])
-        # print(entry.keys())
+        print(entry.keys())
         # print(entry.published)
         # print(entry.title)
         # print(entry.author)
         # print(entry.authors)
         # print(entry.author_detail)
-        print(entry.summary)
+        # print(entry.summary)
         # print(entry.content)
-        # print('ID: ', entry.id)
-        # print('slash_comments: ', entry.slash_comments)
+        print('ID: ', entry.id)
+        if hasattr(entry, 'slash_comments'):
+            print('slash_comments: ', entry.slash_comments)
 
         # print('------------------------------------------------------')
