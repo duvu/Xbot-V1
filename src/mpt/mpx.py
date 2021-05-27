@@ -34,3 +34,13 @@ async def mpx(ctx, *args):
         result = optimize_profit(symbols, mean, corr)
         print(ctx.message.author.roles)
         print(result.to_string())
+
+
+async def mpx_info(ctx, *args):
+    with(open('./mpt/mpt.txt', 'rt')) as f:
+        msg = f.read()
+        if PYTHON_ENVIRONMENT == 'production':
+            await ctx.send('```%s```' % msg, delete_after=300.0)
+            ctx.message.delete()
+        else:
+            print(msg)

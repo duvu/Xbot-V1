@@ -23,6 +23,10 @@ def is_women(roles):
     return any(x.name == 'Nữ' for x in roles)
 
 
+def get_title():
+    return ""
+
+
 def resample_trending_interval(dataframe: pd.DataFrame, interval):
     df = dataframe.copy()
     df = df.set_index(pd.DatetimeIndex(df["date"]))

@@ -17,7 +17,8 @@ from itertools import repeat
 from cacheout import Cache
 
 from mpt.mpt import calc_correlation, optimize_profit
-from mpt.mpx import mpx
+from mpt.mpx import mpx, mpx_info
+from social.trending import social_counting, insert_mentioned_code
 
 from stock import Stock
 from util import volume_break_load_cached, volume_break_save_cached, resample_trending_interval
@@ -50,7 +51,7 @@ bot.bl_words = [
 bot.message_to_delete = queue.Queue()
 bot.stock_objects = {}
 
-f319x = Cache(maxsize=300, ttl=720)
+f319x = Cache(maxsize=300, ttl=3 * 60 * 60)
 
 bot.allowed_commands = [
     '?MTP', '?MPT',
@@ -64,6 +65,7 @@ bot.allowed_commands = [
 bot.good_code = []
 bot.company_list = []
 bot.company_list_all = []
+
 
 def reload_company_list():
     # Update company list
@@ -158,19 +160,6 @@ def stock_worker(code):
         print('Exception', ex)
 
 
-def insert_mentioned_code(matches, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message):
-    if len(matches) > 0:
-        conn, cursor = get_connection()
-        sql_string = '''insert into tbl_mentions(symbol, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message) VALUES (%s, %s, %s, %s, %s, %s)'''
-        for x in matches:
-            try:
-                cursor.execute(sql_string, (x, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message))
-                conn.commit()
-            except Exception as ex:
-                print('[ERROR] Something went wrong %s' % ex)
-        close_connection(conn)
-
-
 @bot.event
 async def on_ready():
     print('Logged in as')
@@ -240,41 +229,11 @@ async def dellphic_hourly():
 #     bot.stock_objects = {x: Stock(x) for x in bot.company_list}
 #     print('Total Stocks loaded %s' % len(bot.stock_objects))
 
-def get_key_x(entry):
-    if hasattr(entry, 'slash_comments'):
-        return entry.id + entry.slash_comments
-    else:
-        return entry.id
-
 
 # Every 10 minutes, read RSS from F319 and parsing stock code.
 @tasks.loop(minutes=5)
 async def f319():
-    f319FeedEntries = feedparser.parse('http://f319.com/forums/-/index.rss').entries
-    f247FeedEntries = feedparser.parse('https://f247.com/posts.rss').entries
-    feeds = [*f319FeedEntries, *f247FeedEntries]
-    for entry in feeds:
-        # Check if entry processed already
-        key_x = get_key_x(entry)
-        if f319x.get(key_x) == 'processed':
-            # print('Processed!')
-            continue
-
-        f319x.set(key_x, 'processed')
-        f319_msg = entry.title + entry.summary
-        for x in bot.bl_words:
-            f319_msg = f319_msg.replace(x, '')
-
-        published = parse(entry.published)
-        msg_a = re.split(r'[`\-=~!@#$%^&*()_+\[\]{};\'\\:"|<,./<>? ]', f319_msg)
-        # Process message and insert to db for STAT here
-        matches = [x for x in bot.company_list_all if x in msg_a]
-        if len(matches) > 0:
-            # Insert into database
-            print('### MATCH %s' % matches)
-            insert_mentioned_code(matches, published, entry.author, entry.author, 'f319', entry.title)
-        else:
-            print('### NO MATCHES %s' % entry.title)
+    await social_counting(bot.company_list_all, bot.bl_words, f319x)
 
 
 @tasks.loop(seconds=15)
@@ -452,20 +411,20 @@ async def trending(ctx, *args):
     print('%s' % ctx.invoked_subcommand)
 
     if symbol in bot.company_list_all:
-        window = float(args[1]) if (len(args) > 1) else 24.0  # default 24hour
+        window = float(args[1]) if (len(args) > 1) else 7.0  # default 7hour
         limit = int(args[1]) if (len(args) > 2) else 10  # default limit 10 top
         query_string = '''select mentioned_at as date, symbol, 1 as count from tbl_mentions where symbol=\"''' + symbol + '''\" and mentioned_at > date_sub(now(), interval ''' + str(
-            window) + ''' hour) order by date desc'''
+            window) + ''' day) order by date desc'''
         sql_query = pd.read_sql_query(query_string, conn)
         trending_list = pd.DataFrame(sql_query)
         close_connection(conn)
         # Re-sample
-        x_trend = resample_trending_interval(trending_list, 60)
+        x_trend = resample_trending_interval(trending_list, 1440)
         x_trend = x_trend.reindex(index=x_trend.index[::-1])
         x_trend.reset_index(inplace=True, drop=True)
         x_trend = x_trend.head(int(window))
 
-        await ctx.send('%s in trend last %s hours ```%s```' % (symbol, window, x_trend.to_string()), delete_after=300.0)
+        await ctx.send('%s in trend last %s days ```%s```' % (symbol, window, x_trend.to_string()), delete_after=300.0)
         await ctx.message.delete()
 
     else:
@@ -496,27 +455,36 @@ async def amark(ctx, *args):
     await ctx.send(file=discord.File('outputs/amark.xlsx'))
 
 
+#  --------------------------------------------------------------------------------------  #
+#  MPT
+#  --------------------------------------------------------------------------------------  #
 @bot.group()
 async def info(ctx, *args):
-    print(args)
-    with(open('../content/mpt.txt', 'rt')) as f:
-        msg = f.read()
-        if PYTHON_ENVIRONMENT == 'production':
-            await ctx.send('```%s```' % msg, delete_after=300.0)
-            ctx.message.delete()
-        else:
-            print(msg)
+    """
+    :param ctx:
+    :param args:
+    :return:
+    """
+    await mpx_info(ctx, *args)
 
 
 @bot.command()
 async def mpt(ctx, *args):
-    """ MPT
+    """
+    :param ctx:
+    :param args:
+    :return:
     """
     await mpx(ctx, *args)
 
 
 @bot.group()
 async def mtp(ctx, *args):
+    """
+    :param ctx:
+    :param args:
+    :return:
+    """
     await mpx(ctx, *args)
 
 

@@ -50,7 +50,7 @@ class Stock:
             print("No finance information")
 
     # Load 1000 days = 3 years
-    def __load_price_board_day(self, length=1000):
+    def __load_price_board_day(self, length=365):
         try:
             sql_resolution_d = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
@@ -60,7 +60,7 @@ class Stock:
             print("Something went wrong", ex)
 
     # Load 6k minute = 100 hours
-    def __load_price_board_minute(self, length=6000):
+    def __load_price_board_minute(self, length=52*4*60):  # 52 candles h4
         try:
             sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)

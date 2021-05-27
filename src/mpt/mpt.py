@@ -1,5 +1,4 @@
-## https://stackoverflow.com/questions/59790285/how-to-solve-a-system-of-equations-and-constraints-for-portfolio-optimization
-from mpt.get_prices import get_prices_n_days
+from db.database import get_connection, close_connection
 import pandas as pd
 import numpy as np
 import scipy.optimize as optimize
@@ -7,6 +6,16 @@ import os
 import json
 import math
 from argparse import ArgumentParser
+
+
+def get_prices_n_days(code, days):
+    conn, cursor = get_connection()
+    sql_string = """select t, o, h, l, c, v  from tbl_price_board_day as pb where pb.code='""" + code + """' order by t desc limit """ + str(days)
+    df_day = pd.DataFrame(pd.read_sql_query(sql_string, conn))
+    close_connection(conn)
+    df_day = df_day.reindex(index=df_day.index[::-1])
+    df_day.reset_index(inplace=True, drop=True)
+    return df_day.tail(days).to_dict()
 
 
 def mock_get_prices_n_days(symbol, days):
@@ -81,6 +90,10 @@ def optimize_profit(symbols, mean, corr, bank_interest_rate=0.07):
 
 
 def main():
+    # Test get prices
+    get_orig = get_prices_n_days('fpt', 10)
+    print('Data `%s`' % get_orig)
+
     parser = ArgumentParser()
     parser.add_argument("-d", "--days", type=int, dest="days",
                         help="number of days", default=120)
