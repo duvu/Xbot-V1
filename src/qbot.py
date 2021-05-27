@@ -1,28 +1,23 @@
-# This example requires the 'members' privileged intents
 import os
-from datetime import datetime, timedelta
-from os import path
+import queue
 import re
+from datetime import datetime, timedelta
+from itertools import repeat
+from os import path
 
+import aiocron
 import discord
-import feedparser
 import pandas as pd
-from dateutil.parser import parse
+from cacheout import Cache
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
-import queue
-import multiprocessing as mp
-import aiocron
-from itertools import repeat
-from cacheout import Cache
 
-from mpt.mpt import calc_correlation, optimize_profit
-from mpt.mpx import mpx, mpx_info
-from social.trending import social_counting, insert_mentioned_code
-
-from stock import Stock
-from util import volume_break_load_cached, volume_break_save_cached, resample_trending_interval
+import util
 from db.database import get_connection, close_connection
+from mpt.mpx import mpx, mpx_info
+from social.crawl import social_counting, insert_mentioned_code
+from stock import Stock
+from util import volume_break_load_cached, volume_break_save_cached, resample_trending_interval, get_pool
 
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
@@ -184,7 +179,7 @@ async def dellphic_daily():
     reload_company_list()
 
     print('... dellphic')
-    p = mp.Pool(5)
+    p = get_pool()
     good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('d1'))) if x is not None]
     p.close()
     p.join()
@@ -202,7 +197,7 @@ async def dellphic_hourly():
         bot.default_channel = bot.get_channel(818029515028168714)
 
     print('... dellphic')
-    p = mp.Pool(5)
+    p = get_pool()
     good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('h1'))) if x is not None]
     p.close()
     p.join()
@@ -211,23 +206,6 @@ async def dellphic_hourly():
         await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
     else:
         await bot.default_channel.send('Dellphic h1 empty', delete_after=10.0)
-
-
-# @tasks.loop(minutes=1)
-# async def refresh_data():
-#     print('refresh data')
-#     bot.stock_objects.clear()
-#     num_cores = mp.cpu_count()
-#     p = mp.Pool(num_cores)
-#
-#     good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('d1'))) if x is not None]
-#     p.apply_async()
-#     p.close()
-#     p.join()
-#
-#
-#     bot.stock_objects = {x: Stock(x) for x in bot.company_list}
-#     print('Total Stocks loaded %s' % len(bot.stock_objects))
 
 
 # Every 10 minutes, read RSS from F319 and parsing stock code.
@@ -251,60 +229,6 @@ async def slow():
         else:
             # put back for wait
             bot.message_to_delete.put(msg)
-
-
-# @bot.command()
-# async def add(ctx, left: int, right: int):
-#     """Adds two numbers together."""
-#     await ctx.send(left + right)
-#
-#
-# @bot.command()
-# async def roll(ctx, dice: str):
-#     """Rolls a dice in NdN format."""
-#     try:
-#         rolls, limit = map(int, dice.split('d'))
-#     except Exception:
-#         await ctx.send('Format has to be in NdN!')
-#         return
-#
-#     result = ', '.join(str(random.randint(1, limit)) for r in range(rolls))
-#     await ctx.send(result)
-#
-#
-# @bot.command(description='For when you wanna settle the score some other way')
-# async def choose(ctx, *choices: str):
-#     """Chooses between multiple choices."""
-#     await ctx.send(random.choice(choices))
-#
-#
-# @bot.command()
-# async def repeat(ctx, times: int, content='repeating...'):
-#     """Repeats a message multiple times."""
-#     for i in range(times):
-#         await ctx.send(content)
-#
-#
-# @bot.command()
-# async def joined(ctx, member: discord.Member):
-#     """Says when a member joined."""
-#     await ctx.send(f'{member.name} joined in {member.joined_at}')
-#
-#
-# @bot.group()
-# async def cool(ctx):
-#     """Says if a user is cool.
-#
-#     In reality this just checks if a subcommand is being invoked.
-#     """
-#     if ctx.invoked_subcommand is None:
-#         await ctx.send(f'No, {ctx.subcommand_passed} is not cool')
-#
-#
-# @cool.command(name='bot')
-# async def _bot(ctx):
-#     """Is the bot cool?"""
-#     await ctx.send('Yes, the bot is cool.')
 
 
 @bot.event
@@ -349,11 +273,8 @@ async def on_message(message):
             if cmd in bot.allowed_commands:
                 await bot.process_commands(message)
             else:
-                xh = "Hãy dùng cú pháp: ```?mtp mã_ck1 mã_ck2 ....```"
-                if PYTHON_ENVIRONMENT == 'production':
-                    await ctx.send(xh, delete_after=10.0)
-                else:
-                    print(xh)
+                await util.send_info(ctx)
+
     elif msg.endswith('X3') or msg.endswith('X3.') or msg.endswith('.X3') or msg.endswith(':X'):
         bot.message_to_delete.put(message)
 
@@ -366,7 +287,7 @@ async def ticker(ctx, *args):
 # Gia tang lien tuc x phien
 @bot.group()
 async def gtlt(ctx, *args):
-    p = mp.Pool(mp.cpu_count())
+    p = get_pool()
     window = int(args[0]) if (len(args) > 0) else 3
     codes = [x for x in p.starmap(gtlt_worker, zip(bot.company_list, repeat(window))) if x is not None]
     p.close()
@@ -385,7 +306,7 @@ async def vb(ctx, *args):
         else:
             await ctx.send('Danh sách khối lượng tăng đột biến đáng chú ý.\n ```%s```' % w)
     else:
-        p = mp.Pool(mp.cpu_count())
+        p = get_pool()
         window = int(args[0]) if (len(args) > 0) else 20
         breakout = int(args[1]) if (len(args) > 1) else 50
         codes = [x for x in p.starmap(volume_break_worker, zip(bot.company_list, repeat(window), repeat(breakout))) if x is not None]
@@ -425,7 +346,7 @@ async def trending(ctx, *args):
         x_trend.reset_index(inplace=True, drop=True)
         r_count = x_trend['count'][::-1]
         x_trend['changed'] = r_count.pct_change()
-        x_trend['changed'] = pd.Series(["{:.0f}%".format(val*100) for val in x_trend['changed']], index=x_trend.index)
+        x_trend['changed'] = pd.Series(["{:.0f}%".format(val * 100) for val in x_trend['changed']], index=x_trend.index)
         x_trend = x_trend.head(int(window))
 
         await ctx.send('%s in trend last %s days ```%s```' % (symbol, window, x_trend.to_string()), delete_after=300.0)
@@ -447,7 +368,7 @@ async def trending(ctx, *args):
 @bot.group()
 async def amark(ctx, *args):
     if not path.exists('../outputs/amark.xlsx'):
-        p = mp.Pool(5)
+        p = get_pool()
         buy_rows = [x for x in p.map(stock_worker, bot.company_list) if x is not None]
         p.close()
         p.join()
@@ -494,5 +415,4 @@ async def mtp(ctx, *args):
 
 slow.start()
 f319.start()
-# refresh_data.start()
 bot.run(TOKEN)

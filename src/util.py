@@ -1,6 +1,36 @@
 import os
+import multiprocessing as mp
 from datetime import datetime
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
+TOKEN = os.getenv('DISCORD_TOKEN')
+GUILD = os.getenv('DISCORD_GUILD')
+CHANNEL_ID = os.getenv('DISCORD_CHANNEL')
+PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT')
+
+
+def get_pool():
+    """
+    Spare 1 core for other command
+    :return:
+    """
+    return mp.Pool(mp.cpu_count() - 1)
+
+
+async def send_info(ctx):
+    """
+    send message if wrong command
+    :param ctx:
+    :return:
+    """
+    with(open('./qbot.md', 'rt')) as f:
+        msg = f.read()
+        if PYTHON_ENVIRONMENT == 'production':
+            await ctx.send('```%s```' % msg, delete_after=300.0)
+        else:
+            print(msg)
 
 
 def volume_break_load_cached():
