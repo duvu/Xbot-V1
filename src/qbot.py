@@ -409,6 +409,7 @@ async def trending(ctx, *args):
     symbol = args[0].upper() if (len(args) > 0) else ''
 
     print('%s' % ctx.invoked_subcommand)
+    await ctx.send('```Bot này đang trong quá trình phát triển và không phải là thuốc. Các NAE vui lòng sử dụng như một chỉ báo ít quan trọng <SIGNED>```', delete_after=180.0)
 
     if symbol in bot.company_list_all:
         window = float(args[1]) if (len(args) > 1) else 7.0  # default 7hour
@@ -422,6 +423,9 @@ async def trending(ctx, *args):
         x_trend = resample_trending_interval(trending_list, 1440)
         x_trend = x_trend.reindex(index=x_trend.index[::-1])
         x_trend.reset_index(inplace=True, drop=True)
+        r_count = x_trend['count'][::-1]
+        x_trend['changed'] = r_count.pct_change()
+        x_trend['changed'] = pd.Series(["{:.0f}%".format(val*100) for val in x_trend['changed']], index=x_trend.index)
         x_trend = x_trend.head(int(window))
 
         await ctx.send('%s in trend last %s days ```%s```' % (symbol, window, x_trend.to_string()), delete_after=300.0)
