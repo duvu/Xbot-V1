@@ -14,20 +14,19 @@ class Stock:
     df_w1 = None
     df_finance = None
 
-    def __init__(self, code, resolution='D', update_last=False, length=365):
+    def __init__(self, code, length=365):
         self.code = code
         self.length = length
-        self.resolution = resolution  # main resolution
         self.conn, cursor = get_connection()
-        self.init()
+        # self.init()
 
     def init(self):
         # Load finance info
-        self.__load_finance_info()
+        self.load_finance_info()
         # Load price board at $D
-        self.__load_price_board_day(length=self.length)
+        self.load_price_board_day(length=self.length)
         # Load price board at $M
-        self.__load_price_board_minute(length=(5 * self.length))
+        self.load_price_board_minute(length=(5 * self.length))
 
         # reverse
         self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
@@ -35,12 +34,23 @@ class Stock:
 
         self.df_minute = self.df_minute.reindex(index=self.df_minute.index[::-1])
 
+    def re_sample_h(self):
+        """
         # re-sample
-        self.df_h1 = resample_to_interval(self.df_minute, interval=60)
-        self.df_h4 = resample_to_interval(self.df_minute, interval=240)
-        self.df_w1 = resample_to_interval(self.df_day, interval=10080)
+        """
+        if len(self.df_minute) > 240:
+            self.df_h1 = resample_to_interval(self.df_minute, interval=60)
+            self.df_h4 = resample_to_interval(self.df_minute, interval=240)
 
-    def __load_finance_info(self):
+    def re_sample_w(self):
+        """
+
+        :return:
+        """
+        if len(self.df_day) > 7:
+            self.df_w1 = resample_to_interval(self.df_day, interval=10080)
+
+    def load_finance_info(self):
         # Load finance info
         try:
             sql_finance_info = """select * from tbl_finance_info as ti where ti.code='""" + self.code + """' order by year_period desc, quarter_period desc limit 4"""
@@ -50,7 +60,7 @@ class Stock:
             print("No finance information")
 
     # Load 1000 days = 3 years
-    def __load_price_board_day(self, length=365):
+    def load_price_board_day(self, length=365):
         try:
             sql_resolution_d = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
@@ -60,12 +70,15 @@ class Stock:
             print("Something went wrong", ex)
 
     # Load 6k minute = 100 hours
-    def __load_price_board_minute(self, length=52*4*60):  # 52 candles h4
+    def load_price_board_minute(self, length=52 * 4 * 60):  # 52 candles h4
+        print('load_price_board_minute')
         try:
             sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
             self.df_minute = pd.DataFrame(pd.read_sql_query(sql_resolution_m, self.conn))
             self.df_minute['date'] = pd.to_datetime(self.df_minute['date'], unit='s')
+
+
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong")
 
@@ -170,8 +183,6 @@ class Stock:
 
             self.df_day['macd'], self.df_day['macdsignal'], self.df_day['macdhist'] = talib.MACD(self.df_day['close'], fastperiod=12,
                                                                                                  slowperiod=26, signalperiod=9)
-
-            self.CURRENT_CLOSE = self.df_day['close'].iloc[-1]
             self.df_day['SMA_5'] = talib.SMA(self.df_day['close'], timeperiod=5)
             self.df_day['SMA_10'] = talib.SMA(self.df_day['close'], timeperiod=10)
             self.df_day['SMA_20'] = talib.SMA(self.df_day['close'], timeperiod=20)
@@ -311,9 +322,6 @@ class Stock:
             except:
                 self.SMA_200_20 = 0
 
-            self.LOW_52W = self.df_day['low'].head(260).min()
-            self.HIGH_52W = self.df_day['high'].head(260).max()
-
     def f_get_current_price(self):
         return self.df_day['close'].iloc[-1]
 
@@ -337,8 +345,12 @@ class Stock:
 
     # minervini conditions
     def f_check_7_conditions(self):
+
+        LOW_52W = self.df_day['low'].head(260).min()
+        HIGH_52W = self.df_day['high'].head(260).max()
+
         # Condition 1: Current Price > 150 SMA and > 200 SMA
-        condition_1 = self.CURRENT_CLOSE > self.df_day['SMA_150'].iloc[-1] > self.df_day['SMA_200'].iloc[-1]
+        condition_1 = self.df_day['close'].iloc[-1] > self.df_day['SMA_150'].iloc[-1] > self.df_day['SMA_200'].iloc[-1]
 
         # Condition 2: 150 SMA and > 200 SMA
         condition_2 = self.df_day['SMA_150'].iloc[-1] > self.df_day['SMA_200'].iloc[-1]
@@ -350,13 +362,13 @@ class Stock:
         condition_4 = self.df_day['SMA_50'].iloc[-1] > self.df_day['SMA_150'].iloc[-1] > self.df_day['SMA_200'].iloc[-1]
 
         # Condition 5: Current Price > 50 SMA
-        condition_5 = self.CURRENT_CLOSE > self.df_day['SMA_50'].iloc[-1]
+        condition_5 = self.df_day['close'].iloc[-1] > self.df_day['SMA_50'].iloc[-1]
 
         # Condition 6: Current Price is at least 30% above 52 week low
-        condition_6 = self.CURRENT_CLOSE >= (1.3 * self.LOW_52W)
+        condition_6 = self.df_day['close'].iloc[-1] >= (1.3 * LOW_52W)
 
         # Condition 7: Current Price is within 25% of 52 week high
-        condition_7 = self.CURRENT_CLOSE >= (.75 * self.HIGH_52W)
+        condition_7 = self.df_day['close'].iloc[-1] >= (.75 * HIGH_52W)
 
         return condition_1 and \
                condition_2 and \
@@ -387,28 +399,28 @@ class Stock:
     # Buy = DK1 AND DK2 AND DK3 AND DK4 AND DK5 AND DK6 AND DK7;
     # Filter=Buy;
 
-    def dellphic(self, timeframe='d1'):
-        if timeframe == 'd1':
-            df = self.df_day
-        elif timeframe == 'w1':
-            df = self.df_w1
-        elif timeframe == 'h1':
-            df = self.df_h1
-        elif timeframe == 'h4':
-            df = self.df_h4
-        else:
-            df = self.df_day
-
-        DK1 = df['SMA_5'].rolling(window=40).min() < df['SMA_20'].rolling(window=40).min()
-        DK2 = df['SMA_20'].rolling(window=40).min() < df['SMA_50'].rolling(window=40).min()
-        DK3 = df['SMA_5'].rolling(window=20).max() > df['SMA_20'].rolling(window=20).max()
-        DK4 = df['SMA_20'].rolling(window=20).max() > df['SMA_50'].rolling(window=20).max()
-        DK5 = df['SMA_5'] > df['SMA_20']
-        # Check if SMA5 cross
-        sma520diff = df['SMA_5'] - df['SMA_20']
-        DK6 = np.select([((sma520diff < 0) & (sma520diff.shift() > 0)), ((sma520diff > 0) & (sma520diff.shift() < 0))], [True, False], False)
-        DK7 = df['volume'].iloc[-1] > 150000
-        return DK1 & DK2 & DK3 & DK4 & DK5 & DK6 & DK7
+    # def dellphic(self, timeframe='d1'):
+    #     if timeframe == 'd1':
+    #         df = self.df_day
+    #     elif timeframe == 'w1':
+    #         df = self.df_w1
+    #     elif timeframe == 'h1':
+    #         df = self.df_h1
+    #     elif timeframe == 'h4':
+    #         df = self.df_h4
+    #     else:
+    #         df = self.df_day
+    #
+    #     DK1 = df['SMA_5'].rolling(window=40).min() < df['SMA_20'].rolling(window=40).min()
+    #     DK2 = df['SMA_20'].rolling(window=40).min() < df['SMA_50'].rolling(window=40).min()
+    #     DK3 = df['SMA_5'].rolling(window=20).max() > df['SMA_20'].rolling(window=20).max()
+    #     DK4 = df['SMA_20'].rolling(window=20).max() > df['SMA_50'].rolling(window=20).max()
+    #     DK5 = df['SMA_5'] > df['SMA_20']
+    #     # Check if SMA5 cross
+    #     sma520diff = df['SMA_5'] - df['SMA_20']
+    #     DK6 = np.select([((sma520diff < 0) & (sma520diff.shift() > 0)), ((sma520diff > 0) & (sma520diff.shift() < 0))], [True, False], False)
+    #     DK7 = df['volume'].iloc[-1] > 150000
+    #     return DK1 & DK2 & DK3 & DK4 & DK5 & DK6 & DK7
 
     def volume_increase(self, window=5):
         compares = self.df_day['volume'] > self.df_day['volume'].shift()

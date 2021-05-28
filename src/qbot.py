@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 import util
 from db.database import get_connection, close_connection
+from dellphic import dellphic
 from mpt.mpx import mpx, mpx_info
 from social.crawl import social_counting, insert_mentioned_code
 from stock import Stock
@@ -58,21 +59,22 @@ bot.allowed_commands = [
     '?TRENDING'
 ]
 bot.good_code = []
-bot.company_list = []
-bot.company_list_all = []
+bot.company_short_list = []
+bot.company_full_list = []
 
 
 def reload_company_list():
     # Update company list
     conn, cursor = get_connection()
     sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))''', conn)
-    bot.company_list = list(pd.DataFrame(sql_query)['code'])
+    bot.company_short_list = list(pd.DataFrame(sql_query)['code'])
     close_connection(conn)
 
 
 def gtlt_worker(code, window):
     try:
         s = Stock(code=code, length=2 * window)
+        s.load_price_board_day()
         if s.price_increase(window=window):
             return code
         del s
@@ -83,6 +85,7 @@ def gtlt_worker(code, window):
 def volume_break_worker(code, window, breakout):
     try:
         s = Stock(code=code, length=window * 2)
+        s.load_price_board_day()
         if s.volume_break(window=window, breakout=breakout):
             # return code
             return [
@@ -98,8 +101,9 @@ def volume_break_worker(code, window, breakout):
 def dellphic_worker(code, timeframe='d1'):
     try:
         s = Stock(code=code)
-        s.calculate_indicators()
-        if s.dellphic(timeframe=timeframe).iloc[-1]:
+        s.load_price_board_day(100)
+        dellphic(s.df_day)
+        if dellphic(s.df_day)[-1]:
             return code
         del s
     except Exception as ex:
@@ -109,6 +113,8 @@ def dellphic_worker(code, timeframe='d1'):
 def stock_worker(code):
     try:
         s = Stock(code=code)
+        s.load_price_board_day()
+        s.calculate_indicators()
         if s.f_check_7_conditions() and s.last_volume() > 100000:
             return [
                 s.LAST_SESSION,
@@ -164,7 +170,7 @@ async def on_ready():
     reload_company_list()
     conn, cursor = get_connection()
     sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', conn)
-    bot.company_list_all = list(pd.DataFrame(sql_query)['Code'])
+    bot.company_full_list = list(pd.DataFrame(sql_query)['Code'])
     close_connection(conn)
 
 
@@ -175,12 +181,12 @@ async def dellphic_daily():
         bot.default_channel = bot.get_channel(815900646419071000)
     else:
         bot.default_channel = bot.get_channel(818029515028168714)
-    # Reload company list
+    # Reload company list daily
     reload_company_list()
 
     print('... dellphic')
     p = get_pool()
-    good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('d1'))) if x is not None]
+    good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_short_list, repeat('d1'))) if x is not None]
     p.close()
     p.join()
 
@@ -198,7 +204,7 @@ async def dellphic_hourly():
 
     print('... dellphic')
     p = get_pool()
-    good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_list, repeat('h1'))) if x is not None]
+    good_codes = [x for x in p.starmap(dellphic_worker, zip(bot.company_short_list, repeat('h1'))) if x is not None]
     p.close()
     p.join()
 
@@ -211,7 +217,7 @@ async def dellphic_hourly():
 # Every 10 minutes, read RSS from F319 and parsing stock code.
 @tasks.loop(minutes=5)
 async def f319():
-    await social_counting(bot.company_list_all, bot.bl_words, f319x)
+    await social_counting(bot.company_full_list, bot.bl_words, f319x)
 
 
 @tasks.loop(seconds=15)
@@ -252,7 +258,7 @@ async def on_message(message):
         # msg_a = re.split('; |, |\\* |\n | ', msg_x)  # msg_x.split(' ')
 
         # Process message and insert to db for STAT here
-        matches = [x for x in bot.company_list_all if x in msg_a]
+        matches = [x for x in bot.company_full_list if x in msg_a]
         if len(matches) > 0:
             # Insert into database
             print('### MATCH %s' % matches)
@@ -281,7 +287,7 @@ async def on_message(message):
 
 @bot.group()
 async def ticker(ctx, *args):
-    await ctx.send(bot.company_list[:100])
+    await ctx.send(bot.company_short_list[:100])
 
 
 # Gia tang lien tuc x phien
@@ -289,7 +295,7 @@ async def ticker(ctx, *args):
 async def gtlt(ctx, *args):
     p = get_pool()
     window = int(args[0]) if (len(args) > 0) else 3
-    codes = [x for x in p.starmap(gtlt_worker, zip(bot.company_list, repeat(window))) if x is not None]
+    codes = [x for x in p.starmap(gtlt_worker, zip(bot.company_short_list, repeat(window))) if x is not None]
     p.close()
     p.join()
     await ctx.send(codes)
@@ -309,7 +315,7 @@ async def vb(ctx, *args):
         p = get_pool()
         window = int(args[0]) if (len(args) > 0) else 20
         breakout = int(args[1]) if (len(args) > 1) else 50
-        codes = [x for x in p.starmap(volume_break_worker, zip(bot.company_list, repeat(window), repeat(breakout))) if x is not None]
+        codes = [x for x in p.starmap(volume_break_worker, zip(bot.company_short_list, repeat(window), repeat(breakout))) if x is not None]
         p.close()
         p.join()
 
@@ -332,7 +338,7 @@ async def trending(ctx, *args):
     print('%s' % ctx.invoked_subcommand)
     await ctx.send('```Bot này đang trong quá trình phát triển và không phải là thuốc. Các NAE vui lòng sử dụng như một chỉ báo ít quan trọng <SIGNED>```', delete_after=180.0)
 
-    if symbol in bot.company_list_all:
+    if symbol in bot.company_full_list:
         window = float(args[1]) if (len(args) > 1) else 7.0  # default 7hour
         limit = int(args[1]) if (len(args) > 2) else 10  # default limit 10 top
         query_string = '''select mentioned_at as date, symbol, 1 as count from tbl_mentions where symbol=\"''' + symbol + '''\" and mentioned_at > date_sub(now(), interval ''' + str(
@@ -369,7 +375,7 @@ async def trending(ctx, *args):
 async def amark(ctx, *args):
     if not path.exists('../outputs/amark.xlsx'):
         p = get_pool()
-        buy_rows = [x for x in p.map(stock_worker, bot.company_list) if x is not None]
+        buy_rows = [x for x in p.map(stock_worker, bot.company_short_list) if x is not None]
         p.close()
         p.join()
 

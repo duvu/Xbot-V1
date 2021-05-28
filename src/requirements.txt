@@ -1,3 +1,4 @@
+matplotlib
 cacheout
 feedparser
 aiocron
