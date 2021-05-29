@@ -41,6 +41,6 @@ async def mpx_info(ctx, *args):
         msg = f.read()
         if PYTHON_ENVIRONMENT == 'production':
             await ctx.send('```%s```' % msg, delete_after=300.0)
-            ctx.message.delete()
+            await ctx.message.delete()
         else:
             print(msg)

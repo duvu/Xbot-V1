@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 import util
 from db.database import get_connection, close_connection
-from dellphic import dellphic
+from delphic.dellphic import dellphic
 from mpt.mpx import mpx, mpx_info
 from social.crawl import social_counting, insert_mentioned_code
 from stock import Stock
@@ -101,10 +101,29 @@ def volume_break_worker(code, window, breakout):
 def dellphic_worker(code, timeframe='d1'):
     try:
         s = Stock(code=code)
-        s.load_price_board_day(100)
-        dellphic(s.df_day)
-        if dellphic(s.df_day)[-1]:
-            return code
+        if timeframe == 'h1':
+            s.load_price_board_minute(7500)  # 150h1
+            s.re_sample_h()
+            dp = dellphic(s.df_h1)
+
+            if dp.tail(1).all():
+                return [
+                    s.df_h1['date'].iloc[-1],
+                    code,
+                    s.df_h1['volume'].iloc[-1],
+                    s.df_h1['close'].iloc[-1]
+                ]
+        else:
+            s.load_price_board_day(150)  # 150 d1
+            dp = dellphic(s.df_day)
+            if dp.tail(1).all():
+                return [
+                    s.df_day['date'].iloc[-1],
+                    code,
+                    s.df_day['volume'].iloc[-1],
+                    s.df_day['close'].iloc[-1]
+                ]
+
         del s
     except Exception as ex:
         print('Exception', ex)
@@ -117,7 +136,7 @@ def stock_worker(code):
         s.calculate_indicators()
         if s.f_check_7_conditions() and s.last_volume() > 100000:
             return [
-                s.LAST_SESSION,
+                s.dff,
                 code,
                 s.last_volume(),
                 s.EPS,
@@ -191,7 +210,8 @@ async def dellphic_daily():
     p.join()
 
     if len(good_codes) > 0:
-        await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
+        gc = pd.DataFrame(good_codes, columns=["Session", "Code", "Volume", 'Close'])
+        await bot.default_channel.send('Dellphic Daily: ```%s```' % gc.to_string(), delete_after=180.0)
 
 
 # At minute 1 past every hour from 9 through 15 on every day-of-week from Monday through Friday.
@@ -209,7 +229,8 @@ async def dellphic_hourly():
     p.join()
 
     if len(good_codes) > 0:
-        await bot.default_channel.send('Dellphic: ```%s```' % good_codes)
+        gc = pd.DataFrame(good_codes, columns=["Session", "Code", "Volume", 'Close'])
+        await bot.default_channel.send('Dellphic Hourly: ```%s```' % gc.to_string(), delete_after=180.0)
     else:
         await bot.default_channel.send('Dellphic h1 empty', delete_after=10.0)
 

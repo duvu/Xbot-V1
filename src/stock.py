@@ -66,6 +66,8 @@ class Stock:
                 length)
             self.df_day = pd.DataFrame(pd.read_sql_query(sql_resolution_d, self.conn))
             self.df_day['date'] = pd.to_datetime(self.df_day['date'], unit='s')
+            self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
+            self.df_day.reset_index(inplace=True, drop=True)
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong", ex)
 
