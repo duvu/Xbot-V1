@@ -1,8 +1,7 @@
 import pandas as pd
-import numpy as np
 import talib
 
-from ichimoku5 import ichimoku5
+from ichimoku.ichimoku5 import ichimoku5
 from db.database import get_connection
 
 
