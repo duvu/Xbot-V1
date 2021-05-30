@@ -71,3 +71,5 @@ def ichimoku5(dataframe,
         'lagging_pt2m1': LAGGING_PT2M1,
         'lagging_mt2p1': LAGGING_MT2P1,
     }
+
+

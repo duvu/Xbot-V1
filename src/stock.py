@@ -78,8 +78,6 @@ class Stock:
                 length)
             self.df_minute = pd.DataFrame(pd.read_sql_query(sql_resolution_m, self.conn))
             self.df_minute['date'] = pd.to_datetime(self.df_minute['date'], unit='s')
-
-
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong")
 
