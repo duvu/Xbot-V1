@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 from itertools import repeat
 from os import path
+import argparse
 
 import aiocron
 import discord
@@ -414,18 +415,7 @@ async def amark(ctx, *args):
 #  --------------------------------------------------------------------------------------  #
 #  Price EVALUATE
 #  --------------------------------------------------------------------------------------  #
-@bot.group()
-async def dinhgia(ctx, *args):
-    """
-    Dinh gia - TV
-    :param ctx:
-    :param args:
-    :return:
-    """
-    await evaluate_price(ctx, *args)
-
-
-@bot.group()
+@bot.group(pass_context=True, aliases=['dinhgia'])
 async def evaluate(ctx, *args):
     """
     Dinh gia - TA
@@ -439,7 +429,7 @@ async def evaluate(ctx, *args):
 #  --------------------------------------------------------------------------------------  #
 #  MPT
 #  --------------------------------------------------------------------------------------  #
-@bot.group()
+@bot.group(pass_context=True, aliases=['thongtin', 'huongdan'])
 async def info(ctx, *args):
     """
     :param ctx:
@@ -449,25 +439,19 @@ async def info(ctx, *args):
     await mpx_info(ctx, *args)
 
 
-@bot.command()
-async def mpt(ctx, *args):
+@bot.command(pass_context=True, aliases=['mtp', 'maiphuongthuy', 'toiuudanhmuc'])
+async def mpt(ctx, *args, **kwargs):
     """
     :param ctx:
     :param args:
     :return:
     """
-    await mpx(ctx, *args)
+    await mpx(ctx, *args, **kwargs)
 
 
-@bot.group()
-async def mtp(ctx, *args):
-    """
-    :param ctx:
-    :param args:
-    :return:
-    """
-    await mpx(ctx, *args)
-
+@mpt.error()
+async def error_handler(ctx):
+    await ctx.send('Something went wrong!')
 
 slow.start()
 f319.start()

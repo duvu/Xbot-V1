@@ -1,11 +1,10 @@
-import os
 import multiprocessing as mp
-from datetime import datetime, time
-import pandas as pd
-from datequarter import DateQuarter
-from dotenv import load_dotenv
+import os
+import re
+from datetime import datetime
 
-from db.database import get_connection
+import pandas as pd
+from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -68,3 +67,6 @@ def resample_trending_interval(dataframe: pd.DataFrame, interval):
     df.reset_index(inplace=True)
     return df
 
+
+def split(txt):
+    return re.split(r'[`\-=~!@#$%^&*()_+\[\]{};\'\\:"|<,./<> ]', txt)
