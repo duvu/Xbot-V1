@@ -1,8 +1,11 @@
 import os
 import multiprocessing as mp
-from datetime import datetime
+from datetime import datetime, time
 import pandas as pd
+from datequarter import DateQuarter
 from dotenv import load_dotenv
+
+from db.database import get_connection
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -64,3 +67,4 @@ def resample_trending_interval(dataframe: pd.DataFrame, interval):
     df = df.resample(str(interval) + "min", kind='timestamp').agg(z_dict).dropna()
     df.reset_index(inplace=True)
     return df
+

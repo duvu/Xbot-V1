@@ -15,9 +15,10 @@ from dotenv import load_dotenv
 import util
 from db.database import get_connection, close_connection
 from delphic.dellphic import dellphic
+from evaluate.evaluate import evaluate_price
 from mpt.mpx import mpx, mpx_info
 from social.crawl import social_counting, insert_mentioned_code
-from stock import Stock
+from stock.stock import Stock
 from util import volume_break_load_cached, volume_break_save_cached, resample_trending_interval, get_pool
 
 description = '''An example bot to showcase the discord.ext.commands extension
@@ -28,7 +29,7 @@ There are a number of utility commands being showcased here.'''
 intents = discord.Intents.default()
 intents.members = True
 
-bot = commands.Bot(command_prefix='?', description=description, intents=intents)
+bot = commands.Bot(command_prefix='?', description=description, intents=intents, case_insensitive=False)
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -56,7 +57,9 @@ bot.allowed_commands = [
     '?AMARK',
     '?GTLT',
     '?VB',
-    '?TRENDING'
+    '?TRENDING',
+    '?EVALUATE',
+    '?DINHGIA',
 ]
 bot.good_code = []
 bot.company_short_list = []
@@ -220,7 +223,8 @@ async def dellphic_hourly():
     if PYTHON_ENVIRONMENT == 'development':
         bot.default_channel = bot.get_channel(815900646419071000)
     else:
-        bot.default_channel = bot.get_channel(818029515028168714)
+        # bot.default_channel = bot.get_channel(818029515028168714)
+        bot.default_channel = bot.get_channel(815900646419071000)
 
     print('... dellphic')
     p = get_pool()
@@ -405,6 +409,31 @@ async def amark(ctx, *args):
     cached = datetime.now().strftime("%b%d")
 
     await ctx.send(file=discord.File('outputs/amark.xlsx'))
+
+
+#  --------------------------------------------------------------------------------------  #
+#  Price EVALUATE
+#  --------------------------------------------------------------------------------------  #
+@bot.group()
+async def dinhgia(ctx, *args):
+    """
+    Dinh gia - TV
+    :param ctx:
+    :param args:
+    :return:
+    """
+    await evaluate_price(ctx, *args)
+
+
+@bot.group()
+async def evaluate(ctx, *args):
+    """
+    Dinh gia - TA
+    :param ctx:
+    :param args:
+    :return:
+    """
+    await evaluate_price(ctx, *args)
 
 
 #  --------------------------------------------------------------------------------------  #

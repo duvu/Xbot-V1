@@ -1,11 +1,6 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import talib
-
-import stock
-import matplotlib.pyplot as plt
-
-from db.database import get_connection, close_connection
 
 
 def calc_sma(df: pd.DataFrame):
