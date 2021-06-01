@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from stock import Stock
+from stock.stock import Stock
 from ichimoku.ichimoku_ext import ichimoku_ext, ichimoku_plot
 
 array1 = [1, 3, 9, 10]

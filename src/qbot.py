@@ -38,7 +38,7 @@ GUILD = os.getenv('DISCORD_GUILD')
 CHANNEL_ID = os.getenv('DISCORD_CHANNEL')
 PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT')
 
-bot.channel_list = [815900646419071000, 818029515028168714]
+bot.channel_list = [815900646419071000, 818029515028168714, 843790719877775380]
 bot.channel_black_list = [843790719877775380, 826636905475080293]  # room coding --> not check code.
 bot.bl_words = [
     'doanh thu',
