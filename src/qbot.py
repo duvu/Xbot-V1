@@ -30,7 +30,7 @@ There are a number of utility commands being showcased here.'''
 intents = discord.Intents.default()
 intents.members = True
 
-bot = commands.Bot(command_prefix='?', description=description, intents=intents, case_insensitive=False)
+bot = commands.Bot(command_prefix='?', description=description, intents=intents, case_insensitive=True)
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -40,7 +40,7 @@ PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT')
 
 bot.channel_list = [815900646419071000, 818029515028168714, 843790719877775380]
 bot.channel_black_list = [843790719877775380, 826636905475080293]  # room coding --> not check code.
-bot.bl_words = [
+bot.bl_words = [  # blacklist word
     'doanh thu',
     'Doanh thu',
     'DOANH THU',
@@ -449,9 +449,9 @@ async def mpt(ctx, *args, **kwargs):
     await mpx(ctx, *args, **kwargs)
 
 
-@mpt.error()
-async def error_handler(ctx):
-    await ctx.send('Something went wrong!')
+# @mpt.error()
+# async def error_handler(ctx):
+#     await ctx.send('Something went wrong!')
 
 slow.start()
 f319.start()

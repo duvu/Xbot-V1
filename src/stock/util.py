@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, time, date
 
 from datequarter import DateQuarter
 
@@ -17,3 +17,17 @@ def get_end_of_quarter(year_period, quarter_period) -> int:
     dt = datetime.combine(end_of_quarter_date, time(23, 59, 59))
 
     return int(dt.timestamp())
+
+
+def get_current_quarter_str() -> str:
+    """
+    Get current quarter string
+    :return:
+    """
+    today = date.today()
+    quarter = DateQuarter.from_date(today).quarter()
+    return 'Q' + str(quarter)
+
+
+if __name__ == '__main__':
+    print(get_current_quarter_str())

@@ -3,7 +3,7 @@ import talib
 
 from ichimoku.ichimoku5 import ichimoku5
 from db.database import get_connection
-from stock.util import get_end_of_quarter
+from stock.util import get_end_of_quarter, get_current_quarter_str
 
 
 class Stock:
@@ -74,13 +74,24 @@ class Stock:
             self.df_finance = self.df_finance.reindex(index=self.df_finance.index[::-1])
             self.df_finance.reset_index(inplace=True, drop=True)
 
+            # Clone last row and update last price
+            last_row = self.df_finance.tail(1).copy()
+            if self.df_minute is None or len(self.df_minute) == 0:
+                self.load_price_board_minute(length=1)  # get last price
+            last_row['quarter_period'] = get_current_quarter_str()
+            last_row['price'] = self.df_minute.tail(1)['close']
+
+            # self.df_finance = pd.concat(self.df_finance, pd.DataFrame(last_row))
+            self.df_finance = self.df_finance.append(last_row)
+
             self.df_finance_ctkh = self.df_finance_ctkh.reindex(index=self.df_finance_ctkh.index[::-1])
             self.df_finance_ctkh.reset_index(inplace=True, drop=True)
-
             # load price and calculate PE, PB
-            self.df_finance['price'] = self.df_finance.apply(lambda x: self.__load_price_quarter(x.year_period, x.quarter_period), axis=1)
-            self.df_finance['pe'] = self.df_finance['price'] / self.df_finance['eps']
-            self.df_finance['pb'] = self.df_finance['price'] / self.df_finance['bvps']
+            if len(self.df_finance) > 0:
+                self.df_finance['price'] = self.df_finance.apply(lambda x: self.__load_price_quarter(x.year_period, x.quarter_period), axis=1)
+                self.df_finance['pe'] = self.df_finance['price'] / self.df_finance['eps']
+                self.df_finance['pb'] = self.df_finance['price'] / self.df_finance['bvps']
+
 
         except pd.io.sql.DatabaseError as ex:
             print("No finance information %s" % ex)
@@ -109,7 +120,6 @@ class Stock:
         :param length:
         :return:
         """
-        print('load_price_board_minute')
         try:
             sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
@@ -126,11 +136,16 @@ class Stock:
         :param is_end:
         :return: dataframe[]
         """
+        # print('{} - {}'.format(year_period, quarter_period))
         end_of_quarter_time = get_end_of_quarter(year_period, quarter_period)
         sql_statement = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' and t < """ + str(
             end_of_quarter_time) + """ order by t desc limit 1"""
         end_of_quarter_data = pd.read_sql_query(sql_statement, self.conn)
-        return pd.DataFrame(end_of_quarter_data).iloc[0]['close']
+        end_of_quarter_data_df = pd.DataFrame(end_of_quarter_data)
+        if len(end_of_quarter_data_df) > 0:
+            return pd.DataFrame(end_of_quarter_data).iloc[0]['close']
+        else:
+            return 0.0
 
     def calculate_finance_info(self):
         if not self.df_finance.empty:
