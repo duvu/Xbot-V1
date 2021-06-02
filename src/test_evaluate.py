@@ -3,6 +3,7 @@ from datetime import datetime, time
 import pandas as pd
 from datequarter import DateQuarter
 
+from db.database import get_connection, close_connection
 from stock.stock import Stock
 
 # sample = DateQuarter(2020, 4)
@@ -103,3 +104,9 @@ price_bp_min = pb_ratio_min * latest_pb_average * latest_bvps
 price_pb_max = pb_ratio_max * latest_pb_average * latest_bvps
 
 print('{} - {} // {} - {}'.format(price_pe_min, price_pe_max, price_bp_min, price_pb_max))
+
+
+conn, curso = get_connection()
+sql = '''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))'''
+
+close_connection(conn)

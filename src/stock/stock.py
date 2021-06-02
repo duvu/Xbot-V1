@@ -22,7 +22,6 @@ class Stock:
         self.code = code
         self.length = length
         self.conn, cursor = get_connection()
-        # self.init()
 
     def init(self):
         # Load finance info
@@ -36,8 +35,6 @@ class Stock:
         self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
         self.df_day = self.df_day.drop_duplicates(subset='date', keep="first")
 
-        self.df_minute = self.df_minute.reindex(index=self.df_minute.index[::-1])
-
     def re_sample_h(self):
         """
         # re-sample
@@ -45,6 +42,9 @@ class Stock:
         if len(self.df_minute) > 240:
             self.df_h1 = resample_to_interval(self.df_minute, interval=60)
             self.df_h4 = resample_to_interval(self.df_minute, interval=240)
+
+        if self.df_day is None or len(self.df_day) == 0 and len(self.df_minute) > 240:
+            self.df_day = resample_to_interval(self.df_minute, interval=1440)
 
     def re_sample_w(self):
         """
@@ -96,9 +96,10 @@ class Stock:
             print("No finance information %s" % ex)
 
     # Load 1000 days = 3 years
-    def load_price_board_day(self, length=365):
+    def load_price_board_day(self, length=365, with_latest=True):
         """
         Load price board day
+        :param with_latest:
         :param length:
         :return:
         """
@@ -109,21 +110,25 @@ class Stock:
             self.df_day['date'] = pd.to_datetime(self.df_day['date'], unit='s')
             self.df_day = self.df_day.reindex(index=self.df_day.index[::-1])
             self.df_day.reset_index(inplace=True, drop=True)
+
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong", ex)
 
     # Load 6k minute = 100 hours
-    def load_price_board_minute(self, length=52 * 4 * 60):  # 52 candles h4
+    def load_price_board_minute(self, length=12480):  # 52 * 4 * 60):  # 52 candles h4
         """
         Load price board minute
         :param length:
         :return:
         """
+        print('Length: #', length)
         try:
             sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
             self.df_minute = pd.DataFrame(pd.read_sql_query(sql_resolution_m, self.conn))
             self.df_minute['date'] = pd.to_datetime(self.df_minute['date'], unit='s')
+            self.df_minute = self.df_minute.reindex(index=self.df_minute.index[::-1])
+            self.df_minute.reset_index(inplace=True, drop=True)
         except pd.io.sql.DatabaseError as ex:
             print("Something went wrong")
 
@@ -145,89 +150,6 @@ class Stock:
             return pd.DataFrame(end_of_quarter_data).iloc[0]['close']
         else:
             return 0.0
-
-    def calculate_finance_info(self):
-        if not self.df_finance.empty:
-            # finance info #EPS means()
-            self.EPS = self.df_finance['eps'].iloc[0]
-            self.EPS_MEAN4 = self.df_finance['eps'].mean()
-            rev_df_fi = self.df_finance['eps'][::-1]
-            self.df_finance['eps_changed'] = rev_df_fi.pct_change()
-
-            self.BVPS = self.df_finance['bvps'].iloc[0]
-            self.BVPS_MEAN4 = self.df_finance['bvps'].mean()
-            self.PE = self.df_finance['pe'].iloc[0]
-            self.PE_MEAN4 = self.df_finance['pe'].mean()
-            self.ROS = self.df_finance['ros'].iloc[0]
-            self.ROS_MEAN4 = self.df_finance['ros'].mean()
-            self.ROEA = self.df_finance['roea'].iloc[0]
-            self.ROEA_MEAN4 = self.df_finance['roea'].mean()
-            self.ROAA = self.df_finance['roaa'].iloc[0]
-            self.ROAA_MEAN4 = self.df_finance['roaa'].mean()
-            self.CURRENT_ASSETS = self.df_finance['current_assets'].iloc[0]
-            self.CURRENT_ASSETS_MEAN4 = self.df_finance['current_assets'].mean()
-            self.TOTAL_ASSETS = self.df_finance['total_assets'].iloc[0]
-            self.TOTAL_ASSETS_MEAN4 = self.df_finance['total_assets'].mean()
-            self.LIABILITIES = self.df_finance['liabilities'].iloc[0]
-            self.LIABILITIES_MEAN4 = self.df_finance['liabilities'].mean()
-            self.SHORT_LIABILITIES = self.df_finance['short_term_liabilities'].iloc[0]
-            self.SHORT_LIABILITIES_MEAN4 = self.df_finance['short_term_liabilities'].mean()
-            self.OWNER_EQUITY = self.df_finance['owner_equity'].iloc[0]
-            self.OWNER_EQUITY_MEAN4 = self.df_finance['owner_equity'].mean()
-            self.MINORITY_INTEREST = self.df_finance['minority_interest'].iloc[0]
-            self.MINORITY_INTEREST_MEAN4 = self.df_finance['minority_interest'].mean()
-            self.NET_REVENUE = self.df_finance['net_revenue'].iloc[0]
-            self.NET_REVENUE_MEAN4 = self.df_finance['net_revenue'].mean()
-            self.GROSS_PROFIT = self.df_finance['gross_profit'].iloc[0]
-            self.GROSS_PROFIT_MEAN4 = self.df_finance['gross_profit'].mean()
-            self.OPERATING_PROFIT = self.df_finance['operating_profit'].iloc[0]
-            self.OPERATING_PROFIT_MEAN4 = self.df_finance['operating_profit'].mean()
-            self.PROFIT_AFTER_TAX = self.df_finance['profit_after_tax'].iloc[0]
-            self.PROFIT_AFTER_TAX_MEAN4 = self.df_finance['profit_after_tax'].mean()
-            self.NET_PROFIT = self.df_finance['net_profit'].iloc[0]
-            self.NET_PROFIT_MEAN4 = self.df_finance['net_profit'].mean()
-        else:
-            # finance info #EPS means()
-            self.EPS = 0
-            self.EPS_MEAN4 = 0
-            rev_df_fi = self.df_finance['eps'][::-1]
-            self.df_finance['eps_changed'] = rev_df_fi.pct_change()
-
-            # print(self.df_fi['eps'])
-            # print(self.df_fi['eps_changed'].mean())
-
-            self.BVPS = 0
-            self.BVPS_MEAN4 = 0
-            self.PE = 0
-            self.PE_MEAN4 = 0
-            self.ROS = 0
-            self.ROS_MEAN4 = 0
-            self.ROEA = 0
-            self.ROEA_MEAN4 = 0
-            self.ROAA = 0
-            self.ROAA_MEAN4 = 0
-            self.CURRENT_ASSETS = 0
-            self.CURRENT_ASSETS_MEAN4 = 0
-            self.TOTAL_ASSETS = 0
-            self.TOTAL_ASSETS_MEAN4 = 0
-            self.LIABILITIES = 0
-            self.LIABILITIES_MEAN4 = 0
-            self.SHORT_LIABILITIES = 0
-            self.SHORT_LIABILITIES_MEAN4 = 0
-            self.OWNER_EQUITY = 0
-            self.OWNER_EQUITY_MEAN4 = 0
-            self.MINORITY_INTEREST = 0
-            self.MINORITY_INTEREST_MEAN4 = 0
-            self.NET_REVENUE = 0
-            self.NET_REVENUE_MEAN4 = 0
-            self.GROSS_PROFIT = 0
-            self.GROSS_PROFIT_MEAN4 = 0
-            self.OPERATING_PROFIT = 0
-            self.OPERATING_PROFIT_MEAN4 = 0
-            self.PROFIT_AFTER_TAX = 0
-            self.PROFIT_AFTER_TAX_MEAN4 = 0
-            self.NET_PROFIT = 0
-            self.NET_PROFIT_MEAN4 = 0
 
     def calculate_indicators(self):
         if not self.df_h1.empty:

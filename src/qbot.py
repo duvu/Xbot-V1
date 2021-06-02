@@ -4,7 +4,6 @@ import re
 from datetime import datetime, timedelta
 from itertools import repeat
 from os import path
-import argparse
 
 import aiocron
 import discord
@@ -12,6 +11,7 @@ import pandas as pd
 from cacheout import Cache
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
+from lru_redis_cache import LRUCache
 
 import util
 from db.database import get_connection, close_connection
@@ -49,7 +49,8 @@ bot.bl_words = [  # blacklist word
 bot.message_to_delete = queue.Queue()
 bot.stock_objects = {}
 
-f319x = Cache(maxsize=300, ttl=3 * 60 * 60)
+# f319x = Cache(maxsize=300, ttl=3 * 60 * 60)
+f319x = LRUCache(cache_size=300, ttl=3 * 60 * 60)
 
 bot.allowed_commands = [
     '?MTP', '?MPT',
