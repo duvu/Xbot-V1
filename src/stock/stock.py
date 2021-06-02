@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import talib
 
@@ -121,7 +122,6 @@ class Stock:
         :param length:
         :return:
         """
-        print('Length: #', length)
         try:
             sql_resolution_m = """select code, t as date, o as open, h as high, l as low, c as close, v as volume from tbl_price_board_minute as pb where pb.code='""" + self.code + """' order by t desc limit """ + str(
                 length)
@@ -141,14 +141,17 @@ class Stock:
         :return: dataframe[]
         """
         # print('{} - {}'.format(year_period, quarter_period))
-        end_of_quarter_time = get_end_of_quarter(year_period, quarter_period)
-        sql_statement = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' and t < """ + str(
-            end_of_quarter_time) + """ order by t desc limit 1"""
-        end_of_quarter_data = pd.read_sql_query(sql_statement, self.conn)
-        end_of_quarter_data_df = pd.DataFrame(end_of_quarter_data)
-        if len(end_of_quarter_data_df) > 0:
-            return pd.DataFrame(end_of_quarter_data).iloc[0]['close']
-        else:
+        try:
+            end_of_quarter_time = get_end_of_quarter(year_period, quarter_period)
+            sql_statement = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' and t < """ + str(
+                end_of_quarter_time) + """ order by t desc limit 1"""
+            end_of_quarter_data = pd.read_sql_query(sql_statement, self.conn)
+            end_of_quarter_data_df = pd.DataFrame(end_of_quarter_data)
+            if len(end_of_quarter_data_df) > 0:
+                return pd.DataFrame(end_of_quarter_data).iloc[0]['close']
+            else:
+                return 0.0
+        except:
             return 0.0
 
     def calculate_indicators(self):
