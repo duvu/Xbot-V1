@@ -5,6 +5,6 @@ class ArgumentParserError(Exception):
     pass
 
 
-class ThrowingArgumentParser(argparse.ArgumentParser):
+class MyXParser(argparse.ArgumentParser):
     def error(self, message):
         raise ArgumentParserError(message)

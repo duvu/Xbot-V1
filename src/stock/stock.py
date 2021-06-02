@@ -92,7 +92,6 @@ class Stock:
                 self.df_finance['pe'] = self.df_finance['price'] / self.df_finance['eps']
                 self.df_finance['pb'] = self.df_finance['price'] / self.df_finance['bvps']
 
-
         except pd.io.sql.DatabaseError as ex:
             print("No finance information %s" % ex)
 
@@ -387,8 +386,12 @@ class Stock:
             except:
                 self.SMA_200_20 = 0
 
-    def f_get_current_price(self):
-        return self.df_day['close'].iloc[-1]
+    def f_get_current_price(self, is_eod=True):
+        if is_eod:
+            if len(self.df_day) > 0:
+                return self.df_day['close'].iloc[-1]
+            elif len(self.df_minute) > 0:
+                return self.df_minute['close'].iloc[-1]
 
     def last_volume(self):
         return self.df_day['volume'].iloc[-1]

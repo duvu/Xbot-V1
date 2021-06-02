@@ -1,19 +1,19 @@
 import pandas as pd
 
-from evaluate.custom_parser import ThrowingArgumentParser
+from exceptions.xparser import MyXParser
 from stock.stock import Stock
 
 
 async def evaluate_price(ctx, *args, **kwargs):
-    parser = ThrowingArgumentParser(add_help=False)
+    parser = MyXParser(add_help=False)
     parser.add_argument("-t", "--target", type=str, dest="target", help="Cổ phiếu muốn định giá", default='FPT')
     parser.add_argument('symbols', metavar='Ticker', type=str, nargs='+', help='Nhóm cổ phiếu so sánh', default='hpg vpb ssi')
     parser.add_argument('-f')
 
     try:
         args = parser.parse_args(args)
-        pe_min, pe_max, pb_min, pb_max = await evaluateX(args.target, args.symbols)
-        await ctx.send('```Eval {} PE# {:.0f} - {:.0f} // PB# {:.0f} - {:.0f}```'.format(args.target, pe_min, pe_max, pb_min, pb_max))
+        latest_price, pe_min, pe_max, pb_min, pb_max = await evaluateX(args.target, args.symbols)
+        await ctx.send('```Eval$ {} \nPrice# {:.0f} \nPE# {:.0f} - {:.0f} \nPB# {:.0f} - {:.0f}```'.format(args.target.upper(), latest_price, pe_min, pe_max, pb_min, pb_max))
     except Exception as ex:
         print('Ex', ex)
         await ctx.send('```Something went wrong. Please try again```')
@@ -32,7 +32,7 @@ async def evaluateX(target, symbols):
     target.load_finance_info(length=5)
     base_group = [get_stock(ticker) for ticker in symbols]
     base_group_summary = (pd.concat(base_group).groupby(['year_period', 'quarter_period']).sum() / len(base_group)).reset_index()
-    print('Base_Group', base_group_summary.to_string())
+    # print('Base_Group', base_group_summary.to_string())
 
     base_group_summary.columns = ['year_period', 'quarter_period', 'pb_average', 'pe_average']
     target_with_base = pd.merge(target.df_finance, base_group_summary, how='left', on=['year_period', 'quarter_period'])
@@ -54,4 +54,4 @@ async def evaluateX(target, symbols):
     price_pb_min = pb_ratio_min * latest_pb_average * latest_bvps
     price_pb_max = pb_ratio_max * latest_pb_average * latest_bvps
 
-    return price_pe_min, price_pe_max, price_pb_min, price_pb_max
+    return target.df_minute.iloc[-1]['close'], price_pe_min, price_pe_max, price_pb_min, price_pb_max
