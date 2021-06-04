@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from dotenv import load_dotenv
 
 from mpt.mpt import calc_correlation, optimize_profit
-from util import is_women, split
+from util import is_women, split, get_title
 
 load_dotenv()
 PYTHON_ENVIRONMENT = os.getenv('PYTHON_ENVIRONMENT')
@@ -23,14 +23,14 @@ async def mpx(ctx, *args, **kwargs):
 
     symbols = [x.upper() for x in symbols]
     if PYTHON_ENVIRONMENT == 'production':
-        ac = 'chị' if is_women(ctx.message.author.roles) else 'anh'
+        ac = get_title(ctx.message.author.roles)  # 'chị' if is_women(ctx.message.author.roles) else 'anh'
         await ctx.send('```Người {} em {} đang kiểm tra {} mã : {}```'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols)), delete_after=180.0)
         symbols, mean, corr = calc_correlation(symbols, args.days)
         result = optimize_profit(symbols, mean, corr, bank_interest_rate=args.interest_rate)
         await ctx.send('```%s```' % result.to_string(), delete_after=180.0)
         await ctx.message.delete()
     else:
-        ac = 'chị' if is_women(ctx.message.author.roles) else 'anh'
+        ac = get_title(ctx.message.author.roles)  # 'chị' if is_women(ctx.message.author.roles) else 'anh'
         msg = '`Người {} em #{} đang kiểm tra {}` mã : `{}`'.format(ac, ctx.message.author, len(symbols), ', '.join(symbols))
         print(msg)
         print('Symbols', symbols)

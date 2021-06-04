@@ -13,9 +13,9 @@ from stock.stock import Stock
 #
 # print(dt.timestamp())
 
-target = 'nlg'
+target = 'dri'
 
-base_group = ['kdh', 'agg']
+base_group = ['gvr', 'dpr', 'hrc', 'trc']
 
 
 # base_group = ['VPB']

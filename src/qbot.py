@@ -17,6 +17,8 @@ import util
 from db.database import get_connection, close_connection
 from delphic.dellphic import dellphic
 from evaluate.evaluate import evaluate_price
+from info import infox
+from info.infox import infoX
 from mpt.mpx import mpx, mpx_info
 from social.crawl import social_counting, insert_mentioned_code
 from stock.stock import Stock
@@ -107,7 +109,7 @@ def dellphic_worker(code, timeframe='d1'):
     try:
         s = Stock(code=code)
         if timeframe == 'h1':
-            s.load_price_board_minute(7500)  # 150h1
+            s.load_price_board_minute(length=7500)  # 150h1
             s.re_sample_h()
             dp = dellphic(s.df_h1)
 
@@ -119,7 +121,7 @@ def dellphic_worker(code, timeframe='d1'):
                     s.df_h1['close'].iloc[-1]
                 ]
         else:
-            s.load_price_board_day(150)  # 150 d1
+            s.load_price_board_day(length=150)  # 150 d1
             dp = dellphic(s.df_day)
             if dp.tail(1).all():
                 return [
@@ -199,7 +201,7 @@ async def on_ready():
 
 
 # At 16:00 on every day-of-week from Monday through Friday.
-@aiocron.crontab('0 16 * * 1-5')
+@aiocron.crontab('1 16 * * 1-5')
 async def dellphic_daily():
     if PYTHON_ENVIRONMENT == 'development':
         bot.default_channel = bot.get_channel(815900646419071000)
@@ -219,8 +221,8 @@ async def dellphic_daily():
         await bot.default_channel.send('Dellphic Daily: ```%s```' % gc.to_string(), delete_after=180.0)
 
 
-# At minute 1 past every hour from 9 through 15 on every day-of-week from Monday through Friday.
-@aiocron.crontab('30 9-15 * * 1-5')
+# every 30 minutes from 9 through 15 on every day-of-week from Monday through Friday.
+@aiocron.crontab('*/30 9-15 * * 1-5')
 async def dellphic_hourly():
     if PYTHON_ENVIRONMENT == 'development':
         bot.default_channel = bot.get_channel(815900646419071000)
@@ -236,9 +238,9 @@ async def dellphic_hourly():
 
     if len(good_codes) > 0:
         gc = pd.DataFrame(good_codes, columns=["Session", "Code", "Volume", 'Close'])
-        await bot.default_channel.send('Dellphic Hourly: ```%s```' % gc.to_string(), delete_after=180.0)
+        await bot.default_channel.send('Dellphic Hourly: ```%s```' % gc.to_string())
     else:
-        await bot.default_channel.send('Dellphic h1 empty', delete_after=10.0)
+        await bot.default_channel.send('Tôi vẫn đang chạy')
 
 
 # Every 10 minutes, read RSS from F319 and parsing stock code.
@@ -437,7 +439,8 @@ async def info(ctx, *args):
     :param args:
     :return:
     """
-    await mpx_info(ctx, *args)
+    await infoX(ctx, *args)
+    # await mpx_info(ctx, *args)
 
 
 @bot.command(pass_context=True, aliases=['mtp', 'maiphuongthuy', 'toiuudanhmuc'])

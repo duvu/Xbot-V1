@@ -1,0 +1,8 @@
+```
+Name: {}, Latest Price: {:,}
+Exchange: {}
+Industry Name: {}
+Total Shares: {}
+Financial Information:
+{}
+```

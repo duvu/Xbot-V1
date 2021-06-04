@@ -19,6 +19,13 @@ class Stock:
     df_finance = None
     df_finance_ctkh = None
 
+    code = ''
+    name = ''
+    industry_name = ''
+    exchange = ''
+    total_shares = 0
+    url = ''
+
     def __init__(self, code, length=365):
         self.code = code
         self.length = length
@@ -54,6 +61,18 @@ class Stock:
         """
         if len(self.df_day) > 7:
             self.df_w1 = resample_to_interval(self.df_day, interval=10080)
+
+    def load_company_info(self):
+        """
+
+        :return:
+        """
+        sql_company_info = """select * from tbl_company where Code='""" + self.code + """' limit 1"""
+        company_info = pd.DataFrame(pd.read_sql_query(sql_company_info, self.conn)).iloc[-1]
+        self.total_shares = company_info['TotalShares']
+        self.name = company_info['Name']
+        self.industry_name = company_info['IndustryName']
+        self.exchange = company_info['Exchange']
 
     def load_finance_info(self, length=4):
         """
@@ -415,8 +434,10 @@ class Stock:
     #     DK7 = df['volume'].iloc[-1] > 150000
     #     return DK1 & DK2 & DK3 & DK4 & DK5 & DK6 & DK7
 
-    def volume_increase(self, window=5):
+    def volume_increase(self, window=5, pct=10):
         compares = self.df_day['volume'] > self.df_day['volume'].shift()
+        # vol_diff = self.df_day = self.df_day.shift()
+
         return compares.tail(window).all()
 
     # Khoi luong dot pha 30 so voi trung binh 20 phien truoc do

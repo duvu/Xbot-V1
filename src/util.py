@@ -55,8 +55,9 @@ def is_women(roles):
     return any(x.name == 'Nữ' for x in roles)
 
 
-def get_title():
-    return ""
+def get_title(roles):
+    ac = 'chị' if any(x.name == 'Nữ' for x in roles) else 'anh'
+    return ac
 
 
 def resample_trending_interval(dataframe: pd.DataFrame, interval):

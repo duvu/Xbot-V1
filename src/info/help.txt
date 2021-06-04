@@ -1,0 +1,11 @@
+Lấy thông tin cơ bản của Ticker XYZ
+
+- ?info XYZ
+
+- Thông tin cơ bản gồm có:
+
+1. Tên công ty
+2. Tổng số cổ phần
+3. Giá hiện tại
+4. EPS, BVPS, PE, PB 04 quý gần nhất
+5. Danh sách 05 mã cùng ngành.

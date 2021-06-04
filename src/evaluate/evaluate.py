@@ -1,11 +1,11 @@
 import pandas as pd
 
-from exceptions.xparser import MyXParser
+from exceptions.qx_parser import QXParser
 from stock.stock import Stock
 
 
 async def evaluate_price(ctx, *args, **kwargs):
-    parser = MyXParser(add_help=False)
+    parser = QXParser(add_help=False)
     parser.add_argument("-t", "--target", type=str, dest="target", help="Cổ phiếu muốn định giá", default='FPT')
     parser.add_argument('symbols', metavar='Ticker', type=str, nargs='+', help='Nhóm cổ phiếu so sánh', default='hpg vpb ssi')
     parser.add_argument('-f')
