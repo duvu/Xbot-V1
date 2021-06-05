@@ -22,7 +22,11 @@ async def infoX(ctx, *args):
             name, exchange, industry_name, total_shares, latest_price, fin = await get_stock_info(target)
             with (open('./info/infox.txt', 'rt')) as f:
                 msg = f.read()
-                await ctx.send(msg.format(name, latest_price, exchange, industry_name, total_shares, fin.to_string(float_format='%.0f')))
+                if PYTHON_ENVIRONMENT == 'production':
+                    await ctx.send(msg.format(target.upper(), name, latest_price, exchange, industry_name, total_shares, fin.to_string(float_format='%.2f')), delete_after=180.0)
+                else:
+                    msgX = msg.format(target.upper(), name, latest_price, exchange, industry_name, total_shares, fin.to_string(float_format='%.2f'), delete_after=180.0)
+                    print(msgX)
 
 
 async def get_stock_info(target):

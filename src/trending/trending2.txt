@@ -1,0 +1,8 @@
+```
+{} in trend last {} days
+
+{}
+
+--
+Bot này đang trong quá trình phát triển và không phải là thuốc. Các NAE vui lòng sử dụng như một chỉ báo ít quan trọng <SIGNED>
+```

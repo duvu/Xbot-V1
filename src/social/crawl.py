@@ -26,18 +26,18 @@ def get_key_x(entry):
         return entry.id
 
 
-async def social_counting(company_list_all, bl_words, f319x=None):
+async def social_counting(company_list_all, bl_words, cacheX=None):
     f319FeedEntries = feedparser.parse('http://f319.com/forums/-/index.rss').entries
     f247FeedEntries = feedparser.parse('https://f247.com/posts.rss').entries
     feeds = [*f319FeedEntries, *f247FeedEntries]
     for entry in feeds:
         # Check if entry processed already
         key_x = get_key_x(entry)
-        if f319x is not None and f319x.get(key_x) == 'processed':
+        if cacheX is not None and cacheX.get(key_x) == 'processed':
             # print('Processed!')
             continue
 
-        f319x.set(key_x, 'processed')
+        cacheX.set(key_x, 'processed')
         f319_msg = entry.title + entry.summary
         for x in bl_words:
             f319_msg = f319_msg.replace(x, '')

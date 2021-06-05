@@ -8,7 +8,6 @@ from os import path
 import aiocron
 import discord
 import pandas as pd
-from cacheout import Cache
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from lru_redis_cache import LRUCache
@@ -17,12 +16,12 @@ import util
 from db.database import get_connection, close_connection
 from delphic.dellphic import dellphic
 from evaluate.evaluate import evaluate_price
-from info import infox
 from info.infox import infoX
-from mpt.mpx import mpx, mpx_info
+from mpt.mpx import mpx
 from social.crawl import social_counting, insert_mentioned_code
 from stock.stock import Stock
-from util import volume_break_load_cached, volume_break_save_cached, resample_trending_interval, get_pool
+from trending.trending import trendingX
+from util import volume_break_load_cached, volume_break_save_cached, get_pool
 
 description = '''An example bot to showcase the discord.ext.commands extension
 module.
@@ -52,7 +51,7 @@ bot.message_to_delete = queue.Queue()
 bot.stock_objects = {}
 
 # f319x = Cache(maxsize=300, ttl=3 * 60 * 60)
-f319x = LRUCache(cache_size=300, ttl=3 * 60 * 60)
+bot.cacheX = LRUCache(cache_size=300, ttl=3 * 60 * 60)
 
 bot.allowed_commands = [
     '?MTP', '?MPT',
@@ -246,7 +245,7 @@ async def dellphic_hourly():
 # Every 10 minutes, read RSS from F319 and parsing stock code.
 @tasks.loop(minutes=5)
 async def f319():
-    await social_counting(bot.company_full_list, bot.bl_words, f319x)
+    await social_counting(bot.company_full_list, bot.bl_words, bot.cacheX)
 
 
 @tasks.loop(seconds=15)
@@ -330,7 +329,7 @@ async def gtlt(ctx, *args):
     await ctx.send(codes)
 
 
-@bot.group()
+@bot.group(pass_context=True, aliases=['dotbien', 'volumebreak'])
 async def vb(ctx, *args):
     w = volume_break_load_cached()
     if w is not None:
@@ -359,45 +358,10 @@ async def vb(ctx, *args):
             await ctx.send('Danh sách khối lượng tăng đột biến đáng chú ý.\n ```%s```' % w)
 
 
-@bot.group()
+@bot.group(pass_context=True, aliases=['xuhuong'])
 async def trending(ctx, *args):
-    conn, cursor = get_connection()
-    symbol = args[0].upper() if (len(args) > 0) else ''
-
-    print('%s' % ctx.invoked_subcommand)
-    await ctx.send('```Bot này đang trong quá trình phát triển và không phải là thuốc. Các NAE vui lòng sử dụng như một chỉ báo ít quan trọng <SIGNED>```', delete_after=180.0)
-
-    if symbol in bot.company_full_list:
-        window = float(args[1]) if (len(args) > 1) else 7.0  # default 7hour
-        limit = int(args[1]) if (len(args) > 2) else 10  # default limit 10 top
-        query_string = '''select mentioned_at as date, symbol, 1 as count from tbl_mentions where symbol=\"''' + symbol + '''\" and mentioned_at > date_sub(now(), interval ''' + str(
-            window) + ''' day) order by date desc'''
-        sql_query = pd.read_sql_query(query_string, conn)
-        trending_list = pd.DataFrame(sql_query)
-        close_connection(conn)
-        # Re-sample
-        x_trend = resample_trending_interval(trending_list, 1440)
-        x_trend = x_trend.reindex(index=x_trend.index[::-1])
-        x_trend.reset_index(inplace=True, drop=True)
-        r_count = x_trend['count'][::-1]
-        x_trend['changed'] = r_count.pct_change()
-        x_trend['changed'] = pd.Series(["{:.0f}%".format(val * 100) for val in x_trend['changed']], index=x_trend.index)
-        x_trend = x_trend.head(int(window))
-
-        await ctx.send('%s in trend last %s days ```%s```' % (symbol, window, x_trend.to_string()), delete_after=300.0)
-        await ctx.message.delete()
-
-    else:
-        window = float(args[0]) if (len(args) > 0) else 24.0  # default 24hour
-        limit = int(args[1]) if (len(args) > 1) else 10  # default limit 10 top
-        query_string = '''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > date_sub(now(), interval ''' + str(
-            window) + ''' hour) group by symbol order by count desc limit ''' + str(limit)
-        sql_query = pd.read_sql_query(query_string, conn)
-        trending_list = pd.DataFrame(sql_query)
-        close_connection(conn)
-
-        await ctx.send('Top %s trending last %s hours ```%s```' % (limit, window, trending_list.to_string()), delete_after=180.0)
-        await ctx.message.delete()
+    ctx.company_full_list = bot.company_full_list
+    await trendingX(ctx, *args)
 
 
 @bot.group()
@@ -432,7 +396,7 @@ async def evaluate(ctx, *args):
 #  --------------------------------------------------------------------------------------  #
 #  MPT
 #  --------------------------------------------------------------------------------------  #
-@bot.group(pass_context=True, aliases=['thongtin', 'huongdan'])
+@bot.group(pass_context=True, aliases=['thongtin', 'huongdan', 'infor'])
 async def info(ctx, *args):
     """
     :param ctx:
