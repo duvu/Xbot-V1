@@ -6,6 +6,8 @@ from datetime import datetime
 import pandas as pd
 from dotenv import load_dotenv
 
+from db.database import get_connection, close_connection
+
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
@@ -33,6 +35,19 @@ async def send_info(ctx):
             await ctx.send('```%s```' % msg, delete_after=300.0)
         else:
             print(msg)
+
+
+def insert_mentioned_code(matches, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, message):
+    if len(matches) > 0:
+        conn, cursor = get_connection()
+        sql_string = '''insert into tbl_mentions(symbol, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, message) VALUES (%s, %s, %s, %s, %s, %s, %s)'''
+        for x in matches:
+            try:
+                cursor.execute(sql_string, (x, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, message))
+                conn.commit()
+            except Exception as ex:
+                print('[ERROR] Something went wrong %s' % ex)
+        close_connection(conn)
 
 
 def volume_break_load_cached():

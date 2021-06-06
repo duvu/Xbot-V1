@@ -1,6 +1,6 @@
 import os
 
-import pymysql
+import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,7 +12,7 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 
 
 def get_connection():
-    conn = pymysql.connect(host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_NAME)
+    conn = psycopg2.connect(dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST)
     cursor = conn.cursor()
     return conn, cursor
 

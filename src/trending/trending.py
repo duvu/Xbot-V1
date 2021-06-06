@@ -12,8 +12,10 @@ async def trendingX(ctx, *args):
     if symbol in ctx.company_full_list:
         window = float(args[1]) if (len(args) > 1) else 7.0  # default 7hour
         limit = int(args[1]) if (len(args) > 2) else 10  # default limit 10 top
-        query_string = '''select mentioned_at as date, symbol, 1 as count from tbl_mentions where symbol=\"''' + symbol + '''\" and mentioned_at > date_sub(now(), interval ''' + str(
-            window) + ''' day) order by date desc'''
+        window_str = "'{} days'".format(window) if window > 1 else "'{} day'".format(window)
+        query_string = '''select mentioned_at as date, symbol, 1 as count from tbl_mentions where symbol=\'''' + symbol + '''\' and mentioned_at > (now() - interval ''' + window_str + ''') order by date desc'''
+
+        print(query_string)
         sql_query = pd.read_sql_query(query_string, conn)
         trending_list = pd.DataFrame(sql_query)
         close_connection(conn)
@@ -33,14 +35,15 @@ async def trendingX(ctx, *args):
     else:
         window = float(args[0]) if (len(args) > 0) else 24.0  # default 24hour
         limit = int(args[1]) if (len(args) > 1) else 10  # default limit 10 top
-        query_string = '''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > date_sub(now(), interval ''' + str(
-            window) + ''' hour) group by symbol order by count desc limit ''' + str(limit)
+        window_str = "'{} hours'".format(window) if window > 1 else "'{} hour'".format(window)
+        query_string = '''select symbol, count(symbol) as count from tbl_mentions where mentioned_at > (now() - interval ''' + window_str + ''') group by symbol order by count desc limit ''' + str(limit)
+
+        print(query_string)
         sql_query = pd.read_sql_query(query_string, conn)
         trending_list = pd.DataFrame(sql_query)
         close_connection(conn)
 
         await __send_message1(ctx, limit, window, trending_list.to_string())
-        # await ctx.send('Top %s trending last %s hours ```%s```' % (limit, window, trending_list.to_string()), delete_after=180.0)
         await ctx.message.delete()
 
 

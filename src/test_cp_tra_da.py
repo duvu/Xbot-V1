@@ -4,7 +4,8 @@ from db.database import get_connection, close_connection
 from stock.stock import Stock
 
 conn, cusor = get_connection()
-sql_data = pd.read_sql_query('''select distinct code from tbl_price_board_day where c < 15000 and v*c > 1000000000 and t > (unix_timestamp() - (86400 * 7));''', conn)
+# sql_data = pd.read_sql_query('''select distinct code from tbl_price_board_day where c < 15000 and v*c > 1000000000 and t > (unix_timestamp() - (86400 * 7));''', conn)
+sql_data = pd.read_sql_query('''select distinct code from tbl_price_board_day where c < 15000 and v*c > 1000000000 and t > (NOW() - INTERVAL '7 DAYS');''', conn)
 company_short_list = list(pd.DataFrame(sql_data)['code'])
 # company_short_list = ['VTD']
 
@@ -23,11 +24,12 @@ def get_stock(s):
 
 #
 # cp_tra_da_list = ['ASM', 'DAG', 'QBS', 'MBG', 'LMH', 'DLG', 'HAI', 'HQC', 'HVG', 'KLF', 'PVX', 'FLC']
+# cp_tra_da_list = ['ASM']
 cp_tra_da_list_data = [get_stock(x) for x in company_short_list]
-#
+
 for fin, ctkh in cp_tra_da_list_data:
-    if fin.iloc[-1]['year_period'] == 2021 and fin.iloc[-1]['price'] * 2 < fin.iloc[-1]['bvps'] and fin.iloc[-1]['eps'] > 0:
-        # print(fin)
+    # print(fin)
+    if fin.iloc[-1]['year_period'] == 2021 and fin.iloc[-1]['price'] * 3 < fin.iloc[-1]['bvps'] and fin.iloc[-1]['eps'] > 0:
         good_code.append(fin.iloc[-1]['code'])
 
 close_connection(conn)

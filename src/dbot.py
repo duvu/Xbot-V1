@@ -1,12 +1,11 @@
 # dbot.py
 import asyncio
 import os
-
 from datetime import datetime
+
 import discord
-from dotenv import load_dotenv
-import pymysql
 import pandas as pd
+from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -36,7 +35,7 @@ class MyClient(discord.Client):
             self.buy_list = []
             self.my_filter()
             pd_buy = pd.DataFrame(self.buy_list, columns=["Session", "Code", "Volume", "EPS", "EPS_MEAN4", 'Price', 'Changed', 'Agree', 'Disagree'])
-            message = f''' ```%s``` ''' % (pd_buy['Code'].to_markdown(tablefmt='grid'))
+            message = f''' ```%s``` ''' % (pd_buy['code'].to_markdown(tablefmt='grid'))
             counter += 1
 
             sheet_name = datetime.now().strftime("%b%d")
@@ -47,7 +46,7 @@ class MyClient(discord.Client):
             await asyncio.sleep(1 * 60 * 60)  # task runs every 1 hour
 
     def my_filter(self):
-        for idx, code in self.df_company_list['Code'].iteritems():
+        for idx, code in self.df_company_list['code'].iteritems():
             self.my_worker(code)
 
     # @multitasking.task  # <== this is all it takes :-)

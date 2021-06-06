@@ -27,7 +27,7 @@ class Stock:
     url = ''
 
     def __init__(self, code, length=365):
-        self.code = code
+        self.code = code.upper()
         self.length = length
         self.conn, cursor = get_connection()
 
@@ -67,12 +67,12 @@ class Stock:
 
         :return:
         """
-        sql_company_info = """select * from tbl_company where Code='""" + self.code + """' limit 1"""
+        sql_company_info = """select * from tbl_company where code='""" + self.code + """' limit 1"""
         company_info = pd.DataFrame(pd.read_sql_query(sql_company_info, self.conn)).iloc[-1]
-        self.total_shares = company_info['TotalShares']
-        self.name = company_info['Name']
-        self.industry_name = company_info['IndustryName']
-        self.exchange = company_info['Exchange']
+        self.total_shares = company_info['totalshares']
+        self.name = company_info['name']
+        self.industry_name = company_info['industryname']
+        self.exchange = company_info['exchange']
 
     def load_finance_info(self, length=4):
         """
@@ -82,8 +82,7 @@ class Stock:
         """
         try:
             # get length + 1 because of some company public BCTC earlier than other
-            sql_finance_info = """select * from tbl_finance_info as ti where ti.code='""" + self.code + """' order by year_period desc, quarter_period desc limit """ + str(
-                length + 1)
+            sql_finance_info = """select * from tbl_finance_info as ti where ti.code='""" + self.code + """' order by year_period desc, quarter_period desc limit """ + str(length + 1)
             sql_finance_info_ctkh = """select * from tbl_finance_info_ctkh where code='""" + self.code + """' order by year_period DESC limit """ + str(length)
             finance_info_data = pd.read_sql_query(sql_finance_info, self.conn)
             finance_info_ctkh_data = pd.read_sql_query(sql_finance_info_ctkh, self.conn)
@@ -112,6 +111,7 @@ class Stock:
                 self.df_finance['pe'] = self.df_finance['price'] / self.df_finance['eps']
                 self.df_finance['pb'] = self.df_finance['price'] / self.df_finance['bvps']
 
+            print(self.df_finance)
         except pd.io.sql.DatabaseError as ex:
             print("No finance information %s" % ex)
 
@@ -162,7 +162,7 @@ class Stock:
         # print('{} - {}'.format(year_period, quarter_period))
         try:
             end_of_quarter_time = get_end_of_quarter(year_period, quarter_period)
-            sql_statement = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' and t < """ + str(
+            sql_statement = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' and extract(epoch from t) < """ + str(
                 end_of_quarter_time) + """ order by t desc limit 1"""
             end_of_quarter_data = pd.read_sql_query(sql_statement, self.conn)
             end_of_quarter_data_df = pd.DataFrame(end_of_quarter_data)

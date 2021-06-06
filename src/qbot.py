@@ -18,7 +18,6 @@ from delphic.dellphic import dellphic
 from evaluate.evaluate import evaluate_price
 from info.infox import infoX
 from mpt.mpx import mpx
-from social.crawl import social_counting, insert_mentioned_code
 from stock.stock import Stock
 from trending.trending import trendingX
 from util import volume_break_load_cached, volume_break_save_cached, get_pool
@@ -72,7 +71,7 @@ bot.company_full_list = []
 def reload_company_list():
     # Update company list
     conn, cursor = get_connection()
-    sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))''', conn)
+    sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (NOW() - INTERVAL '7 DAYS')''', conn)
     bot.company_short_list = list(pd.DataFrame(sql_query)['code'])
     close_connection(conn)
 
@@ -150,37 +149,6 @@ def stock_worker(code):
                 s.f_get_current_price(),
             ]
 
-        # s.consensus_day.evaluate_ichimoku()
-        # s.evaluate_ichimoku5()
-        # buy_agreement = s_score['buy_agreement'].iloc[-1]
-        # buy_disagreement = s_score['buy_disagreement'].iloc[-1]
-        # if buy_agreement > buy_disagreement:
-        #     print("BUY BUY BUY %s" % code)
-        #     return [
-        #         s.LAST_SESSION,
-        #         code,
-        #         s.f_total_vol(),
-        #         s.EPS,
-        #         s.EPS_MEAN4,
-        #         s.f_get_current_price(),
-        #         s.f_last_changed() * 100,
-        #         buy_agreement,
-        #         buy_disagreement
-        #     ]
-        #  check uptrend & downtrend
-        # if s.uptrend_ichi() > 0:
-        #     print("BUY BUY BUY %s" % code)
-        #     return [
-        #         s.LAST_SESSION,
-        #         code,
-        #         s.f_total_vol(),
-        #         s.EPS,
-        #         s.EPS_MEAN4,
-        #         s.f_get_current_price(),
-        #         s.f_last_changed() * 100,
-        #         s.uptrend_ichi()
-        #     ]
-
         del s  # dispose s
     except Exception as ex:
         print('Exception', ex)
@@ -194,8 +162,8 @@ async def on_ready():
     print('------')
     reload_company_list()
     conn, cursor = get_connection()
-    sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by Code ASC''', conn)
-    bot.company_full_list = list(pd.DataFrame(sql_query)['Code'])
+    sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by code ASC''', conn)
+    bot.company_full_list = list(pd.DataFrame(sql_query)['code'])
     close_connection(conn)
 
 
@@ -241,13 +209,6 @@ async def dellphic_hourly():
     else:
         await bot.default_channel.send('Tôi vẫn đang chạy')
 
-
-# Every 10 minutes, read RSS from F319 and parsing stock code.
-@tasks.loop(minutes=5)
-async def f319():
-    await social_counting(bot.company_full_list, bot.bl_words, bot.cacheX)
-
-
 @tasks.loop(seconds=15)
 async def slow():
     if PYTHON_ENVIRONMENT == 'development':
@@ -282,15 +243,13 @@ async def on_message(message):
             msg_x = msg_x.replace(x, '')
 
         msg_a = re.split(r'[`\-=~!@#$%^&*()_+\[\]{};\'\\:"|<,./<> ]', msg_x)  # msg_x.split(' ')
-        # msg_a = re.split('; |, |\\*|\n | |\\? |! |_ |- |. | |\\# |$', msg_x)  # msg_x.split(' ')
-        # msg_a = re.split('; |, |\\* |\n | ', msg_x)  # msg_x.split(' ')
 
         # Process message and insert to db for STAT here
         matches = [x for x in bot.company_full_list if x in msg_a]
         if len(matches) > 0:
             # Insert into database
             print('### MATCH %s' % matches)
-            insert_mentioned_code(matches, message.created_at, message.author.id, message.author, 'discord', message.content)
+            util.insert_mentioned_code(matches, message.created_at, message.author.id, message.author, 'discord', message.id, message.content)
         else:
             print('### NO MATCHES', msg_a)
 
@@ -422,5 +381,4 @@ async def mpt(ctx, *args, **kwargs):
 #     await ctx.send('Something went wrong!')
 
 slow.start()
-f319.start()
 bot.run(TOKEN)

@@ -8,7 +8,7 @@ from delphic.dellphic import dellphic
 def reload_company_list():
     # Update company list
     conn, cursor = get_connection()
-    sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))''', conn)
+    sql_query = pd.read_sql_query('''select distinct code from tbl_price_board_day where v > 150000 and t > (NOW() - INTERVAL '7 DAYS')''', conn)
     close_connection(conn)
     return list(pd.DataFrame(sql_query)['code'])
 

@@ -107,6 +107,6 @@ print('{} - {} // {} - {}'.format(price_pe_min, price_pe_max, price_bp_min, pric
 
 
 conn, curso = get_connection()
-sql = '''select distinct code from tbl_price_board_day where v > 150000 and t > (unix_timestamp() - (86400 * 7))'''
+sql = '''select distinct code from tbl_price_board_day where v > 150000 and t > (NOW() - INTERVAL '7 DAYS')'''
 
 close_connection(conn)

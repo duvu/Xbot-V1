@@ -9,7 +9,7 @@ from stock.stock import Stock
 ONE_BILLION = 1000000000
 good_code = []
 conn, cursor = get_connection()
-sql_data = pd.read_sql_query('''select distinct code from tbl_price_board_day where c < 30000 and v*c > ''' + str(ONE_BILLION) + ''' and t > (unix_timestamp() - (86400 * 7));''', conn)
+sql_data = pd.read_sql_query('''select distinct code from tbl_price_board_day where c < 30000 and v*c > ''' + str(ONE_BILLION) + ''' and t > (NOW() - INTERVAL '7 DAYS');''', conn)
 company_short_list = list(pd.DataFrame(sql_data)['code'])
 
 

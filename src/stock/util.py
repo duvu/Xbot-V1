@@ -3,7 +3,7 @@ from datetime import datetime, time, date
 from datequarter import DateQuarter
 
 
-def get_end_of_quarter(year_period, quarter_period) -> int:
+def get_end_of_quarter(year_period, quarter_period):
     """
     get end of day timestamp of the day end-of-quarter
     :param year_period:
@@ -16,7 +16,7 @@ def get_end_of_quarter(year_period, quarter_period) -> int:
     end_of_quarter_date = quarter.end_date()
     dt = datetime.combine(end_of_quarter_date, time(23, 59, 59))
 
-    return int(dt.timestamp())
+    return dt.timestamp()
 
 
 def get_current_quarter_str() -> str:
