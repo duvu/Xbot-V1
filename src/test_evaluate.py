@@ -17,6 +17,8 @@ target = 'dri'
 
 base_group = ['gvr', 'dpr', 'hrc', 'trc']
 
+# single positional indexer is out-of-bounds
+# ?dinhgia -thnd qtp
 
 # base_group = ['VPB']
 

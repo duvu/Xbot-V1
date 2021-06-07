@@ -40,13 +40,23 @@ async def send_info(ctx):
 def insert_mentioned_code(matches, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, message):
     if len(matches) > 0:
         conn, cursor = get_connection()
-        sql_string = '''insert into tbl_mentions(symbol, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, message) VALUES (%s, %s, %s, %s, %s, %s, %s)'''
+        sql_string = """INSERT INTO tbl_mentions(symbol, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, message_title, message) VALUES (%s, timestamp \'%s\', %s, %s, %s, %s, %s, %s)"""
+        print(sql_string)
         for x in matches:
+            print('symbol', x)
+            print('mentioned_at', mentioned_at)
+            print('mentioned_by_id', mentioned_by_id)
+            print('mentioned_by', mentioned_by)
+            print('mentioned_in', mentioned_in)
+            print('message_id', message_id)
+            print('message', message)
             try:
-                cursor.execute(sql_string, (x, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, message))
-                conn.commit()
+                cursor.execute(sql_string, (x, mentioned_at, mentioned_by_id, mentioned_by, mentioned_in, message_id, 'discord', message))
+                print("Query", cursor.query)
             except Exception as ex:
-                print('[ERROR] Something went wrong %s' % ex)
+                print('[ERROR] %s' % ex)
+            finally:
+                conn.commit()
         close_connection(conn)
 
 

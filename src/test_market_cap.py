@@ -18,7 +18,7 @@ def get_stock_market_cap(s):
 
 
 conn, cursor = get_connection()
-sql_query = pd.read_sql_query('''select * from tbl_company where Exchange='HOSE' or Exchange='HNX' or Exchange='Upcom' order by code ASC''', conn)
+sql_query = pd.read_sql_query('''select * from tbl_company order by code ASC''', conn)
 company_full_list = list(pd.DataFrame(sql_query)['code'])
 close_connection(conn)
 

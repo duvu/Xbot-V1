@@ -1,5 +1,4 @@
 ```
-X
 {} in trend last {} days
 
 {}
