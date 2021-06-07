@@ -16,6 +16,7 @@ import util
 from db.database import get_connection, close_connection
 from delphic.dellphic import dellphic
 from evaluate.evaluate import evaluate_price
+from help.help import helpX
 from info.infox import infoX
 from mpt.mpx import mpx
 from stock.stock import Stock
@@ -31,6 +32,7 @@ intents = discord.Intents.default()
 intents.members = True
 
 bot = commands.Bot(command_prefix='?', description=description, intents=intents, case_insensitive=True)
+bot.remove_command('help')
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -62,6 +64,7 @@ bot.allowed_commands = [
     '?TRENDING',
     '?EVALUATE',
     '?DINHGIA',
+    '?HELP'
 ]
 bot.good_code = []
 bot.company_short_list = []
@@ -208,6 +211,7 @@ async def dellphic_hourly():
         await bot.default_channel.send('Dellphic Hourly: ```%s```' % gc.to_string())
     else:
         await bot.default_channel.send('Tôi vẫn đang chạy')
+
 
 @tasks.loop(seconds=15)
 async def slow():
@@ -374,6 +378,19 @@ async def mpt(ctx, *args, **kwargs):
     :return:
     """
     await mpx(ctx, *args, **kwargs)
+
+
+#  --------------------------------------------------------------------------------------  #
+#  HELP
+#  --------------------------------------------------------------------------------------  #
+@bot.command(pass_context=True)
+async def help(ctx, *args, **kwargs):
+    """
+    :param ctx:
+    :param args:
+    :return:
+    """
+    await helpX(ctx, *args, **kwargs)
 
 
 # @mpt.error()
