@@ -44,6 +44,8 @@ async def trendingX(ctx, *args):
         sql_query = pd.read_sql_query(query_string, conn)
         trending_list = pd.DataFrame(sql_query)
         trending_list[['price', 'price changed', 'volume', 'volume changed']] = trending_list['symbol'].apply(lambda x: get_stock_vpa(x))
+
+        print(trending_list.to_string())
         trending_listX = trending_list.loc[(trending_list['price'] > 0.0) & (trending_list['volume'] > 0.0)].head(limit)
         trending_listX.reset_index(inplace=True, drop=True)
         close_connection(conn)
@@ -75,5 +77,5 @@ def get_stock_vpa(s):
         xf = df.iloc[-1][['close', 'price changed', 'volume', 'volume changed']]
         return pd.Series({'close': xf['close'], 'price changed': '{:.0%}'.format(xf['price changed']), 'volume': xf['volume'], 'volume changed': '{:.0%}'.format(xf['volume changed'])})
     else:
-        return pd.Series({'close': 0.0, 'price changed': '{:.0%}'.format(0.0), 'volume changed': '{:.0%}'.format(0.0), 'volume': 0.0})
+        return pd.Series({'close': 0.0, 'price changed': '{:.0%}'.format(0.0), 'volume': 0.0, 'volume changed': '{:.0%}'.format(0.0)})
 

@@ -37,7 +37,7 @@ async def get_stock_info(target):
     exchange = target.exchange
     industry_name = target.industry_name
     total_shares = target.total_shares
-    latest_price = target.df_minute.iloc[-1]['close']
+    latest_price = target.df_minute.iloc[-1]['close'] if len(target.df_minute) > 0 else 0.0
     fin = target.df_finance[['year_period', 'quarter_period',  'eps', 'bvps', 'pe', 'pb', 'price']].tail(5)
     fin.reset_index(inplace=True, drop=True)
     fin.columns = ['Year', 'Quarter', 'EPS', 'BVPS', 'PE', 'PB', 'PRICE']
