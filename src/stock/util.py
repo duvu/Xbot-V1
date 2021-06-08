@@ -16,7 +16,7 @@ def get_end_of_quarter(year_period, quarter_period):
     end_of_quarter_date = quarter.end_date()
     dt = datetime.combine(end_of_quarter_date, time(23, 59, 59))
 
-    return dt.timestamp()
+    return int(dt.timestamp())
 
 
 def get_current_quarter_str() -> str:

@@ -13,13 +13,12 @@ from stock.stock import Stock
 #
 # print(dt.timestamp())
 
-target = 'dri'
-
-base_group = ['gvr', 'dpr', 'hrc', 'trc']
+target = 'sbs'
+base_group = ['shs', 'mbs']
 
 # single positional indexer is out-of-bounds
 # ?dinhgia -thnd qtp
-
+# ?dinhgia -tsbs shs mbs
 # base_group = ['VPB']
 
 def getStock(s):

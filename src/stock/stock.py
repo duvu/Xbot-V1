@@ -95,8 +95,9 @@ class Stock:
 
             # Clone last row and update last price
             last_row = self.df_finance.tail(1).copy()
-            if self.df_minute is None or len(self.df_minute) == 0:
-                self.load_price_board_minute(length=1)  # get last price
+            # if self.df_minute is None or len(self.df_minute) == 0:
+
+            self.load_price_board_minute(length=1)  # get last price
             last_row['quarter_period'] = get_current_quarter_str()
             last_row['price'] = self.df_minute.tail(1)['close']
 
@@ -111,7 +112,7 @@ class Stock:
                 self.df_finance['pe'] = self.df_finance['price'] / self.df_finance['eps']
                 self.df_finance['pb'] = self.df_finance['price'] / self.df_finance['bvps']
 
-            print(self.df_finance)
+            # print(self.df_finance)
         except pd.io.sql.DatabaseError as ex:
             print("No finance information %s" % ex)
 
@@ -159,9 +160,9 @@ class Stock:
         :param is_end:
         :return: dataframe[]
         """
-        # print('{} - {}'.format(year_period, quarter_period))
         try:
             end_of_quarter_time = get_end_of_quarter(year_period, quarter_period)
+            print('{} - {}: {}'.format(year_period, quarter_period, end_of_quarter_time))
             sql_statement = """select code, t as date, o as open, h as high, l as low, c as close, v as volume  from tbl_price_board_day as pb where pb.code='""" + self.code + """' and extract(epoch from t) < """ + str(
                 end_of_quarter_time) + """ order by t desc limit 1"""
             end_of_quarter_data = pd.read_sql_query(sql_statement, self.conn)

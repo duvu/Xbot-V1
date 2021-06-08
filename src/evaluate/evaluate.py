@@ -24,6 +24,7 @@ def get_stock(s):
     x.load_finance_info(length=5)
     rtn = x.df_finance[['year_period', 'quarter_period', 'pb', 'pe']]
     del x
+    print(rtn)
     return rtn
 
 
@@ -32,10 +33,12 @@ async def evaluateX(target, symbols):
     target.load_finance_info(length=5)
     base_group = [get_stock(ticker) for ticker in symbols]
     base_group_summary = (pd.concat(base_group).groupby(['year_period', 'quarter_period']).sum() / len(base_group)).reset_index()
-    # print('Base_Group', base_group_summary.to_string())
-
     base_group_summary.columns = ['year_period', 'quarter_period', 'pb_average', 'pe_average']
+
+    # print('Summary\n', base_group_summary)
+    print('Target Finance\n', target.df_finance)
     target_with_base = pd.merge(target.df_finance, base_group_summary, how='left', on=['year_period', 'quarter_period'])
+    # print('TargetWithBaseXXX\n', target_with_base)
     target_with_base['pe_ratio'] = target_with_base['pe'] / target_with_base['pe_average']
     target_with_base['pb_ratio'] = target_with_base['pb'] / target_with_base['pb_average']
     pe_ratio_min = target_with_base['pe_ratio'].min()
@@ -43,6 +46,7 @@ async def evaluateX(target, symbols):
     pb_ratio_min = target_with_base['pb_ratio'].min()
     pb_ratio_max = target_with_base['pb_ratio'].max()
 
+    # print('TargetWithBaseYYY\n', target_with_base)
     latest_pe_average = target_with_base.iloc[-1]['pe_average']
     latest_pb_average = target_with_base.iloc[-1]['pb_average']
     latest_eps = target_with_base.iloc[-1]['eps']
