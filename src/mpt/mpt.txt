@@ -1,0 +1,11 @@
+Nguyên tắc tối ưu hóa là tối đa lợi nhuận kỳ vọng dựa trên cùng một mức độ rủi ro kỳ vọng như nhau. Tuy nhiên, tôi lưu ý rằng:
+
+(i) danh mục tối ưu giả định bạn muốn nắm giữ cổ phiếu bạn chọn trên cở sở lâu dài. Tỷ lệ % chính là sự phân bổ số tiền nhiều/ít cho các cổ phiếu bạn chọn;
+
+(ii) định kỳ bạn có thể kiểm tra xem tỷ lệ % thay đổi thế nào để hiểu là nên rebalancing thế nào (mua thêm/bán bớt như các quỹ đầu tư vẫn làm);
+
+(iii) nếu dùng ngắn hạn thì tối ưu hóa kiểu này phù hợp nhất với kiểu giao dịch theo xu hướng (momentum) là kiểu giao dịch khá phổ biến. Và đặc biệt là
+
+(iv) theo kinh nghiệm của tôi cách dùng hữu ích nhất chính là nếu bạn đang phân vân giữa các cổ phiếu cùng nhóm ngành, cùng kiểu (ví dụ đánh đấm) thì dùng máy này sẽ gợi ý bạn chọn cổ phiếu tốt hơn trong số đó. Dữ liệu dùng để tính toán hiện tại là giá 120 ngày gần nhất và giả định lãi suất ngân hàng 12 tháng 7%. Giai đoạn này các bạn tham khảo là chính. Sau đó, cái máy này sẽ cần phải nâng cấp để nó phân biệt được 3 giai đoạn tăng/giảm/sideways để từ đó mới có gợi ích phân bổ tốt hơn
+
+<Quách Mạnh Hào>

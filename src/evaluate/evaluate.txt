@@ -1,0 +1,11 @@
+(1) Lựa chọn doanh nghiệp so sánh phù hợp: cùng ngành thì chọn doanh nghiệp dẫn đầu, thanh khoản cao; khác ngành thì chọn cùng nhóm dòng tiền, thanh khoản cao. Thanh khoản cao để đảm bảo định giá thị trường. Nếu nhiều quá thì lọc thêm quy mô doanh thu. (Recommended) Cần 3-5 mã.
+
+(2) Tính PE và PB của từng doanh nghiệp được chọn và doanh nghiệp định giá.
+
+(3) Tính trung bình PE và PB của các doanh nghiệp so sánh: trung bình giản đơn phản ánh thị trường tốt hơn.
+
+(4) Tính tỉ trọng của PE và PB của doanh nghiệp theo dõi so với trung bình của doanh nghiệp so sánh để xem phạm vi dao động.
+
+(5a) Định giá và kết luận: Nếu % (4) kỳ hiện tại nằm trong (lớn nhất, nhỏ nhất) của (4) các kỳ trước đó --> định giá hợp lý. Kết luận tiềm năng tăng trưởng theo tốt nhất và xấu nhất
+
+(5b) Có thể sử dụng trung bình các kỳ trước đó để kết luận. Nhưng (5a) tốt hơn để nhìn cảm xúc (emotional) so với lý trí (rational)

@@ -1,0 +1,13 @@
+```
+Ticker: {}
+Name: {}, Latest Price: {:,}
+Exchange: {}
+Industry Name: {}
+Total Shares: {}
+Financial Information:
+{}
+
+--
+Các thông tin trên đây được thu thập từ các nguồn công khai và được xử lý bởi nhóm dự án "Đầu tư theo nhóm QMV".
+Thông tin và bảng số liệu được xem tốt nhất trên các màn hình lớn như máy tính bảng và máy tính để bàn.
+```
